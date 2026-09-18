@@ -1,0 +1,1 @@
+{"_source":"RECONSTRUCTED STUB - fail-closed, zero principals; replace with vault original AUTHORIZED_HUMAN_DEVELOPER_REGISTRY.json before external review","note":"Empty on purpose: with no registered principals, validateHumanAuthorization() denies every change request. Add no placeholder humans here — populate only from the author's real registry.","principals":[]}

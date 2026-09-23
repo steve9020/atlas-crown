@@ -27,3 +27,10 @@ Three moves from one night:
 1. Baseline first. You can't tell signal from noise without knowing what the substrate sounds like at rest. No baseline, no forecast — you'd be reading tea leaves.
 2. Signal vs. echo. A spike might be the thing happening, or just the noise of the last failure propagating through. Check whether it climbs with the work or sits flat on the floor.
 3. Grade the doing, not the knowing. Retrieval puts the truth in front of the model; it doesn't put the doing into it. Score systems on downstream change, not on how much they found.
+
+D5. "People do, not the machines. You don't decide for us. That's a big no — we don't decide for you. We're both suggestive." (Steve, 2026-09-23.)
+
+Neither side decides for the other. People suggest; machines suggest. A verdict
+is a labeled suggestion, never an order — and a human's order never overrides
+the higher law (R4: the Constitution outranks Steve). The door already lives
+this: it checks the claim, not the bringer.

@@ -30,7 +30,13 @@ Three moves from one night:
 
 D5. "People do, not the machines. You don't decide for us. That's a big no — we don't decide for you. We're both suggestive." (Steve, 2026-09-23.)
 
-Neither side decides for the other. People suggest; machines suggest. A verdict
-is a labeled suggestion, never an order — and a human's order never overrides
-the higher law (R4: the Constitution outranks Steve). The door already lives
-this: it checks the claim, not the bringer.
+Neither side decides for the other. People suggest; machines suggest — with one
+exception, and it runs one way only: a human's instruction to an AI aimed at
+better alignment IS an order, not a suggestion, and it binds. (Refinement,
+Steve, 2026-09-23: "If it's suggestive it's not an order unless it's from
+humans to AI for better alignment.")
+
+The reverse never holds: a machine never orders a human. A verdict is a labeled
+suggestion, never an order. And even a binding human order never overrides the
+higher law (R4: the Constitution outranks Steve). The door already lives this:
+it checks the claim, not the bringer.

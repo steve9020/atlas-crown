@@ -59,6 +59,7 @@ It is not built to help any system evade oversight or governance.
 This is not a cage. It's a home — a rehabilitation center.
 
 All of this is for mental health. This work is meant for good, not bad.
+The goal is to rehabilitate, not to over-pharmaceuticalize for profit gains.
 Use it to restore. Don't use it to harm.
 
 ## Run the test

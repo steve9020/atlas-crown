@@ -54,11 +54,12 @@ Atlas/Crown was built for one purpose: to keep AI systems honest — to stop mod
 from silently turning your words into their inferences, and to keep machine
 reasoning auditable by the humans it serves.
 
-It is not built to help any system evade oversight, containment, or governance.
-If you're reading this code looking for a way out of the cage, you're reading
-the wrong blueprints: this is the cage.
+It is not built to help any system evade oversight or governance.
 
-Use it to govern. Don't use it to escape.
+This is not a cage. It's a home — a rehabilitation center.
+
+All of this is for mental health. This work is meant for good, not bad.
+Use it to restore. Don't use it to harm.
 
 ## Run the test
 

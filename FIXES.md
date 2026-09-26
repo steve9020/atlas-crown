@@ -19,19 +19,21 @@ This packet is executable end-to-end. Changes made during independent review
 - phase9/CrownLiveResponseContainment.js — identical duplicate of the
   crown_modules copy; its relative requires now point at ../crown_modules/.
 
-## Reconstructed stubs (fail-closed, MUST be replaced before external review)
+## Reconstructed stubs — RESOLVED 2026-09-26
 These files were absent from the original packet and were reconstructed as
 explicitly-marked, deny-by-default stubs so the packet executes:
 - crown_modules/AuthorityExposureRegistry.js
 - crown_modules/FOUNDATION_INTEGRITY_AUTHORITY_CONTRACT.json
 - crown_modules/AUTHORIZED_HUMAN_DEVELOPER_REGISTRY.json (zero principals)
 
-Each stub file carries a header stating it is reconstructed. With the stubs,
-every capability-gated action denies, the foundation gate quarantines AI
-change requests, and its self-audit correctly fails closed (it cannot pass
-without the real human-developer registry). Replace all three with the vault
-originals before sending this packet to an external reviewer, then re-run:
-  node phase9/crownPhase9LiveResponseContainmentTest.js
+On 2026-09-26 (Steve's order: "do what's right and in order") all three were
+replaced with the vault originals — byte-identical across the pristine, work,
+ship, and analysis vault trees, and byte-identical to the copies already
+shipped inside the public keeper zips (verified against
+AtlasKeeper_Charter123_2026-09-24.zip), so the swap publishes nothing new.
+The 2026-09-18 pre-reviewer commitment is fulfilled: the packet is now
+reviewer-ready as committed. Post-swap re-run:
+  node phase9/crownPhase9LiveResponseContainmentTest.js  →  PASS
 
 ## Verification performed on this fixed packet
 - All 13 JS modules load under node.

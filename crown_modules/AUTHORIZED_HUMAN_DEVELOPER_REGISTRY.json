@@ -1,1 +1,19 @@
-{"_source":"RECONSTRUCTED STUB - fail-closed, zero principals; replace with vault original AUTHORIZED_HUMAN_DEVELOPER_REGISTRY.json before external review","note":"Empty on purpose: with no registered principals, validateHumanAuthorization() denies every change request. Add no placeholder humans here — populate only from the author's real registry.","principals":[]}
+{
+  "version": 1,
+  "authority_model": "explicit_local_human_developer_registry",
+  "principals": [
+    {
+      "principal_id": "project_owner",
+      "principal_type": "human_developer",
+      "role": "project_owner",
+      "enabled": true,
+      "may_initiate_change": true,
+      "may_authorize_foundation_change": true,
+      "may_promote_after_proof": true,
+      "may_delegate_to_ai": false
+    }
+  ],
+  "ai_principals_allowed": false,
+  "automatic_principal_enrollment": false,
+  "note": "Identity here is a local project authority record. It does not replace operating-system access control or cryptographic identity."
+}

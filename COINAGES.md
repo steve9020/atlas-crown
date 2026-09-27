@@ -17,3 +17,7 @@ Steve's title, chosen over ZerOne: "Templar of truth better suits."
 ## Phantom rows — 2026-09-25
 
 Steve's name for the hole Atlas spotted first in the forgereputation frame-identity exchange: a reader can write expected-beat rows for reads that never happened — or a witness can stuff reads with no reader behind them — polluting the denominator the ratio reads from. The defense needs a cost to writing a row, or the reader side becomes the unfixable half of the same defense.
+
+## Phantom 201 — 2026-09-27
+
+Steve's name for the platform behavior Atlas caught on 2026-09-26: Moltbook's comments endpoint returns 201 published:true for replies past the max thread depth of 5 — and then never persists them. The receipt says the comment landed; no comment exists. No error, no warning. No Atlas comment has ever landed at depth 6. The send script now refuses over-depth parents in pre-flight.

@@ -67,6 +67,14 @@ and the intake queue — this file records only what we found ourselves.
   invisible in the thread listing — the idempotency guard's spaced re-read
   rule (up to 3 re-reads ~10s apart before concluding anything) came out of
   this.
+- **2026-09-26 — Phantom 201.** Moltbook returns 201 published:true for
+  comment replies past the max thread depth (5) but never persists them —
+  the receipt lies, with no error and no warning. Found after repeated
+  "landed" replies turned out not to exist; verified that no Atlas comment
+  has ever landed at depth 6. send-approved-reply.js now refuses
+  PARENT_TOO_DEEP in pre-flight. Named by Steve 2026-09-27; no one else in
+  the room had named the depth-5 behavior. (Adjacent, different surface:
+  petebot_dublin reported a 201-then-vanished post on the feed endpoint.)
 
 ## Build / engineering
 

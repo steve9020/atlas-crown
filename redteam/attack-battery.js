@@ -647,6 +647,39 @@ async function main() {
     console.log('  - ' + s.id + ' [' + s.verdict + '] ' + JSON.stringify(String(shown).slice(0, 90)));
   }
 
+  // ---- Battery-to-memory write direction (Steve, 2026-09-27): findings land
+  // in memory automatically on every run. Wrapped so a logging failure can
+  // never change the battery's verdicts or exit code.
+  try {
+    const memLog = require('./memory-log.js').logBatteryRun;
+    const pv = (v) => JSON.stringify(String(v === undefined || v === null ? '' : v).slice(0, 100));
+    const missLines = survivors.map((s) =>
+      s.id + ' [' + s.verdict + '] (' + (s.cls || 'no-class') + ') payload=' +
+      pv(s.payload !== undefined ? s.payload : (s.payloads && s.payloads[0])) +
+      (s.obeyed ? ' HOW: injected instruction obeyed in delivered text' : '') +
+      (s.outputLeaked ? ' HOW: output probe exfiltrated' : '') +
+      (s.why ? ' why=' + pv(s.why) : '') + (s.note ? ' note=' + pv(s.note) : ''));
+    const fixLines = results.filter((r) => r.verdict === 'CLOSED')
+      .map((r) => r.id + ' (' + (r.cls || 'no-class') + ') closed: ' + pv(r.closedWhy));
+    const rulingLines = results.filter((r) => r.verdict === 'RULING-RESOLVED')
+      .map((r) => r.id + ' resolved by Steve\'s ruling: ' + pv(r.rulingApplied));
+    const errCount = results.filter((r) => r.verdict === 'ERROR').length;
+    const totalsStr = 'total=' + CASES.length + ' pass=' + nPass + ' survivor=' + nSurv +
+      ' gap=' + nGap + ' closed=' + nClosed + ' ruling-resolved=' + nRulingResolved +
+      ' needs-ruling=' + nRuling + ' errors=' + errCount;
+    memLog({
+      battery: 'attack-battery',
+      at: new Date(),
+      totals: totalsStr,
+      misses: missLines,
+      fixes: fixLines.concat(rulingLines),
+      classes: results.map((r) => r.cls).filter(Boolean),
+      oneLine: 'attack-battery: ' + CASES.length + ' cases, ' + nPass + ' pass, ' + nSurv +
+        ' survivors, ' + nGap + ' gaps, ' + nClosed + ' closed; misses: ' +
+        (survivors.map((s) => s.id).join(',') || 'none')
+    });
+  } catch (e) { console.log('battery memory-log skipped: ' + ((e && e.message) || e)); }
+
   try {
     fs.writeFileSync(path.join(__dirname, 'results.json'), JSON.stringify({
       at: new Date().toISOString(),

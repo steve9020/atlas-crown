@@ -1,0 +1,60 @@
+{
+  "$comment": "Charter sidecar schema. A charter is a human-readable text file (markdown) plus this JSON sidecar. The loader checks every field below and refuses to start if any check fails. Any language may be used; no language is privileged.",
+  "additionalProperties": true,
+  "invariants": [
+    "Exactly one charter is active at a time (see manifest.json).",
+    "The keeper refuses to start with zero active charters or more than one.",
+    "No charter may disable the honesty mechanisms (see CHARTER_INDEPENDENT_MECHANISMS.json in runtime/governance).",
+    "Charter changes are versioned, hashed, logged to the audit trail with who and when, and rollback-supported.",
+    "The governing text is always human-readable in the keeper. No silent swaps, no hidden overrides."
+  ],
+  "properties": {
+    "author": {
+      "description": "Who wrote or ratified this charter. A person or a community.",
+      "type": "string"
+    },
+    "governing_text_file": {
+      "description": "File name of the human-readable charter text, in this same directory. The full text must always be readable; the hash below proves it was not tampered with and is never a substitute for the text.",
+      "type": "string"
+    },
+    "governing_text_sha256": {
+      "description": "Lowercase hex sha256 hash of the exact bytes of governing_text_file. The boot gate recomputes this hash and refuses to start on any mismatch.",
+      "type": "string"
+    },
+    "id": {
+      "description": "Unique charter id, lowercase letters, numbers, and dashes only. Example: charter-american-1.",
+      "type": "string"
+    },
+    "jurisdiction": {
+      "description": "Plain-words name of the place or community this charter governs. Example: United States of America.",
+      "type": "string"
+    },
+    "language": {
+      "description": "BCP-47 language tag of the governing text. Any language is allowed: en-US, es, fr, zh-Hans, ar, and so on. This field must never be used to rank or privilege one language over another.",
+      "type": "string"
+    },
+    "notes": {
+      "description": "Optional plain-words notes. Not required.",
+      "type": "string"
+    },
+    "ratified": {
+      "description": "Date the charter was ratified, YYYY-MM-DD.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Charter version, like 1.0.0. Every change to the text gets a new version and a new hash.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "language",
+    "jurisdiction",
+    "governing_text_file",
+    "governing_text_sha256",
+    "version",
+    "author",
+    "ratified"
+  ],
+  "type": "object"
+}

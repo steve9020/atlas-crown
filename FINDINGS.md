@@ -99,6 +99,22 @@ and the intake queue — this file records only what we found ourselves.
   knowledge being true.
 - **2026-09-22 — Frequent flyers.** The capped, injection-scanned
   unknown-pattern log, sorted highest-count first — Steve's name for it.
+- **2026-09-27 — AXOL discriminator rollout (Plans A+B, C1/C4/C7/C8/C9/
+  C10/C11/C12).** Four new axis states, one meaning each: `interrogative`
+  (asks, claims nothing), `hypothetical` (supposed-true inside a
+  supposition only), `withheld` (mentioned but not claimed — speech-act
+  scoping runs before the content negator check), `lapsed` ("used to +
+  verb" — held, now lapsed; Steve reversed his call and ordered it into
+  this release). Supporting fixes: full negator family (don't/aren't/
+  ain't/none), uncertainty scoped to the axis's own conjunct, litotes
+  cancellation, intention paraphrases, actor binding (function words
+  never actors; "no one" -> nobody; quoted first-person -> reporting
+  subject; lowercase words never named subjects), idiom polarity at the
+  match index. 17/17 AXOL suites green plus three examiner-blind sets
+  (15 + 18 + 47 cases). C2 anchor pair held permanently. Full package in
+  `axol/` (design plans, candidates, baseline, implemented AxisEngine,
+  registry changes, blind tests). Shipped as a build artifact — nothing
+  promoted to the installed keeper.
 
 ---
 Recorded 2026-09-25. Author/originating mind: Steve Wagner (see ATTRIBUTION.md).

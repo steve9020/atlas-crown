@@ -63,6 +63,11 @@ as the English one.
 One rule: the section "What no charter can change" stays word for word. It
 protects the honesty machinery for everyone, including you.
 
+One boundary on jurisdiction: anyone can write a charter for their own
+deployment — the seat is open there. But a charter that claims to be the law
+for America belongs to government officials only. A document only binds a
+country when it comes from the oath-bound hands the Constitution authorizes.
+
 ## How do I see what is going on?
 
 Open `CHARTER_STATUS.md` (in the `01 Atlas Governance` folder). It shows:

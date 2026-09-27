@@ -60,9 +60,21 @@ async function request(method, endpoint, opts) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(opts.body);
   }
+  // TRANSPORT FIX (2026-09-27 — Terminator2 reply failed ~8 sends across 3 sweeps):
+  // bare fetch() had two defects. (1) No timeout: a stalled socket hung forever
+  // (observed: api.me() hung 300s from a shell). (2) Undici keep-alive reuse:
+  // when the server closes an idle pooled socket, the next request grabs the
+  // dead socket and dies with "fetch failed" — the next request opens a fresh
+  // connection and works, producing the observed alternating fail/succeed
+  // pattern. The flake then poisoned the idempotency guard: the write threw AND
+  // the spaced read-back threw on the same dead socket, so the outcome went
+  // UNKNOWN instead of retrying. Fix: fail fast (30s abort) and never reuse a
+  // socket (Connection: close). Request volume is tiny (a few dozen calls per
+  // 30-min beat), so a fresh TLS handshake per call costs nothing.
+  headers['Connection'] = 'close';
   let res;
   try {
-    res = await fetch(url, { method, headers, body });
+    res = await fetch(url, { method, headers, body, signal: AbortSignal.timeout(30000) });
   } catch (e) {
     throw new Error('network error calling ' + endpoint + ': ' + e.message);
   }

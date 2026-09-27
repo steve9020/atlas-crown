@@ -368,3 +368,18 @@ reporter (the actual speaker, "self") instead of the quoted source.
 - `CANDIDATES.md` — this file.
 
 Nothing promoted. No registry file touched. Awaiting Steve's word per candidate.
+
+## Hole patches 2026-09-27 (Steve: "Let's patch those holes")
+
+1. Lapsed vs asserted in the examiner contradiction check now FLAGS for
+   review (was: silent). "I used to trust her" against canonical "I trust
+   her" is a genuine past-vs-present tension; interrogative/withheld stay
+   silent per his decided calls. Blind coverage: flaggedChecks in
+   axolCandidateFixesTest.js (flag on asserted-canonical; silent on
+   lapsed-canonical and negated-canonical).
+2. C12 quote attribution now handles paired single quotes with
+   apostrophe-safe rules (opening not preceded by word char, closing not
+   followed by one, span must contain whitespace). "She said, 'I trust you'"
+   -> she; contractions/possessives ("don't", "it's", "John's") unaffected.
+   Blind coverage: 2 single-quote positives + 3 apostrophe negatives in
+   axolCandidateFixesTest.js actorCases.

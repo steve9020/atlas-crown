@@ -75,3 +75,18 @@ Polarity note: "hands are tied" and "pass the buck" lexically encode
 negation — handled in `AxisEngine.js` (`evidenceState`, C10 block) at the
 axis match index, so only the idiom-bearing axis flips. "Take the fall"
 and "pull the strings" encode no negation and stay asserted.
+
+## Code-side hole patches 2026-09-27 (Steve's order, post-stamp)
+
+No registry sections touched. Both patches live in code:
+
+- **C12 single-quote attribution** (`AxisEngine.js`, `quotedSpeaker` + new
+  `singleQuoteSpans`): paired single quotes count as quotation marks with
+  apostrophe-safe rules — opening quote not preceded by a word character,
+  closing quote not followed by one, span must contain whitespace.
+  "She said, 'I trust you'" attributes to she; "don't"/"it's"/"John's"
+  never match.
+- **lapsed-vs-asserted contradiction** (`IndependentExaminer.js`,
+  `examineLanguageCandidate`): a lapsed variant against an asserted canonical
+  now FLAGS ("variant lapses what the canonical asserts"); interrogative
+  and withheld stay silent per Steve's decided calls.

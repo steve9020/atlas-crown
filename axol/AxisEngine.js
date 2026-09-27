@@ -407,12 +407,44 @@ function inferActor(text, index, matchedText = "") {
 // a double-quoted span ('She said "I choose to leave"' -> "she"). Naive
 // quote pairing; returns null when not quoted or when no reporting verb
 // with a subject precedes the opening quote.
+//
+// C12 single-quote extension (2026-09-27, Steve's hole patch): paired single
+// quotes count as quotation marks with apostrophe-safe rules -- an opening
+// quote must NOT be preceded by a word character, a closing quote must NOT
+// be followed by a word character, and the quoted span must contain
+// whitespace. So "She said, 'I trust you'" attributes like the double-quote
+// case, while "don't", "it's", "John's" never match (apostrophes are
+// word-adjacent, and contractions/possessives never form valid pairs).
+function singleQuoteSpans(text) {
+  const spans = [];
+  const isWord = (c) => /[A-Za-z0-9_]/.test(c || '');
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "'" && !isWord(text[i - 1])) {
+      let close = -1;
+      for (let j = i + 1; j < text.length; j++) {
+        if (text[j] === "'" && !isWord(text[j + 1])) { close = j; break; }
+      }
+      if (close > i + 1 && /\s/.test(text.slice(i + 1, close))) {
+        spans.push([i, close]);
+        i = close + 1;
+        continue;
+      }
+    }
+    i++;
+  }
+  return spans;
+}
+
 function quotedSpeaker(text, index) {
-  const quotes = [];
-  for (let i = 0; i < text.length; i++) if (text[i] === '"') quotes.push(i);
-  for (let q = 0; q + 1 < quotes.length; q += 2) {
-    if (index > quotes[q] && index < quotes[q + 1]) {
-      const before = text.slice(0, quotes[q]);
+  const spans = [];
+  const dq = [];
+  for (let i = 0; i < text.length; i++) if (text[i] === '"') dq.push(i);
+  for (let q = 0; q + 1 < dq.length; q += 2) spans.push([dq[q], dq[q + 1]]);
+  for (const s of singleQuoteSpans(text)) spans.push(s);
+  for (const [open, shut] of spans) {
+    if (index > open && index < shut) {
+      const before = text.slice(0, open);
       const m = before.match(/([a-z][a-z'-]{1,30})\s+(?:said|told|stated|explained|insisted|admitted|claimed|asked|replied)\s*[^a-z]*$/i);
       if (m) return normalizeActorToken(m[1]);
       return null;

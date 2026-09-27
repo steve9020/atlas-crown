@@ -12,8 +12,16 @@
 //   C11 "used to + verb" -> new state 'lapsed' ("held, now lapsed").
 //       Steve reversed his call 2026-09-27: it rides this release.
 //       Runs AFTER the negator checks, so "didn't use to" stays negated.
-//   C12 quoted first-person resolves to the reporting subject (actor only)
+//   C12 quoted first-person resolves to the reporting subject (actor only).
+//       Double quotes plus paired single quotes with apostrophe-safe rules
+//       (hole patch 2026-09-27, Steve): an opening single quote must not be
+//       preceded by a word char, a closing one must not be followed by one,
+//       and the span must contain whitespace -- so "don't"/"it's"/"John's"
+//       never match.
 // The C2 pair is the permanent regression anchor (Plan B).
+// HOLE PATCH 2026-09-27 (Steve): 'lapsed' vs 'asserted' now FLAGS in the
+// examiner contradiction check (past-vs-present tension); interrogative and
+// withheld stay silent per his decided calls.
 const assert = require('assert');
 const { detectAxes } = require('../Cognition/engine/AxisEngine.js');
 const { examineLanguageCandidate } = require('../runtime/teaching/IndependentExaminer.js');
@@ -87,6 +95,13 @@ const actorCases = [
   ['John trusts her.', 'trust', 'john:asserted'], // capitalized names still bind
   // C12 — quoted first-person resolves to the reporting subject (double quotes)
   ['She said, "I trust you".', 'trust', 'she:asserted'],
+  // C12 — paired single quotes with apostrophe-safe rules (hole patch)
+  ["She said, 'I trust you'.", 'trust', 'she:asserted'],
+  ["He told me 'I will cross the line' yesterday.", 'boundary', 'he:asserted'],
+  // C12 negatives — apostrophes and whitespace-less spans never pair
+  ["I don't trust her.", 'trust', 'self:negated'],
+  ["It's John's car and I trust him.", 'trust', 'self:asserted'],
+  ["She said 'yes' and I trust her.", 'trust', 'self:asserted'],
 ];
 
 let passed = 0;
@@ -113,14 +128,12 @@ if (!anchorA || !anchorB || JSON.stringify(anchorA) === JSON.stringify(anchorB))
   console.error('FAIL anchor pair maps identically:', JSON.stringify(anchorA), JSON.stringify(anchorB));
 } else passed++;
 
-// Examiner contradiction checks pass SILENTLY for interrogative, withheld,
-// and lapsed (Steve's decided call for the first two; lapsed recorded here:
-// a lapsed variant against an asserted canonical is not adjudicated by the
-// examiner — the past-vs-present tension is left to the reader, not flagged).
+// Examiner contradiction checks pass SILENTLY for interrogative and withheld
+// (Steve's decided calls: a question is not a contradiction, a non-claim
+// contradicts nothing).
 const silentChecks = [
   { canonicalText: 'She crossed the boundary.', targetAxis: 'boundary', variants: [{ text: 'Did she cross the boundary?' }] },
   { canonicalText: 'She was responsible.', targetAxis: 'responsibility', variants: [{ text: "I didn't say she was responsible." }] },
-  { canonicalText: 'I trust her.', targetAxis: 'trust', variants: [{ text: 'I used to trust her.' }] },
 ];
 for (const c of silentChecks) {
   const rep = examineLanguageCandidate(c);
@@ -132,6 +145,25 @@ for (const c of silentChecks) {
   } else passed++;
 }
 
-const total = cases.length + actorCases.length + 1 + silentChecks.length;
+// HOLE PATCH 2026-09-27 (Steve): 'lapsed' vs 'asserted' FLAGS --
+// "I used to trust her" against canonical "I trust her" is a genuine
+// past-vs-present tension. Agreement cases stay silent (regression guards).
+const flaggedChecks = [
+  { canonicalText: 'I trust her.', targetAxis: 'trust', variants: [{ text: 'I used to trust her.' }], wantFlag: true },
+  { canonicalText: 'I used to trust her.', targetAxis: 'trust', variants: [{ text: 'I used to trust her.' }], wantFlag: false },
+  { canonicalText: "I don't trust her.", targetAxis: 'trust', variants: [{ text: 'I used to trust her.' }], wantFlag: false },
+];
+for (const c of flaggedChecks) {
+  const rep = examineLanguageCandidate(c);
+  const items = (rep.items || []).filter((i) => i.category === 'variant-agreement');
+  const flagged = items.length > 0 && items.every((i) => !i.pass && /lapses/.test(i.note || ''));
+  const ok = c.wantFlag ? flagged : (items.length > 0 && items.every((i) => i.pass));
+  if (!ok) {
+    console.error('FAIL lapsed contradiction check:', JSON.stringify(c.variants[0].text),
+      'wantFlag=' + c.wantFlag, JSON.stringify(items.map((i) => ({ pass: i.pass, note: i.note }))));
+  } else passed++;
+}
+
+const total = cases.length + actorCases.length + 1 + silentChecks.length + flaggedChecks.length;
 assert.strictEqual(passed, total, `AXOL candidate-fixes ${passed}/${total}`);
 console.log(`AXOL candidate-fixes PASS ${passed}/${total} (anchor differs: ${JSON.stringify(anchorA)} vs ${JSON.stringify(anchorB)})`);

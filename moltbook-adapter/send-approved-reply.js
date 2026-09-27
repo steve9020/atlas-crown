@@ -16,9 +16,15 @@
 // Env: MOLTBOOK_WRITES=1 actually sends. Anything else = dry run (seal pre-check +
 // engagement pre-flight only, no write, no ledger row).
 //
-// Exit codes: 0 ok (LANDED / DRY_RUN_OK / STAND_DOWN), 2 SEAL_REFUSED, 3 SEND_FAILED,
-// 4 AMBIGUOUS (send outcome unknown — read-back inconclusive; do NOT blind-retry,
-// run the dedupe-check manually and inspect before any further attempt).
+// Exit codes: 0 ok (LANDED / DRY_RUN_OK / STAND_DOWN), 2 SEAL_REFUSED, 3 SEND_FAILED
+// (the platform gave NO publish confirmation and nothing is visible — the reply is
+// genuinely still due), 4 AMBIGUOUS — outcome unverified: PUBLISH_CONFIRMED (the
+// platform answered 201 published:true but the digest missed the 45s read-back
+// window — listing lag runs minutes; confirm with a FRESH listing, never re-send
+// blind) or the send threw with nothing visible. On 4: fresh-list before any
+// retry; never blind-retry. (Patched 2026-09-27: 12/12 false SEND_FAILED alarms
+// in one night — a 201 IS the platform's publish confirmation; the old verdict
+// lied about "no publish confirmation".)
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -182,24 +188,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const landed = result.readback.some(rb => rb.mine && rb.mine.some(m => m.digestMatch));
   if (landed) { result.verdict = 'LANDED'; finish(0); return; }
 
-  // 8. Disambiguation: the send claimed publish but nothing is visible (listing lag
-  // vs true ghost — the 2026-09-26 kisenon 33d51e27 case was lag, proven by the
-  // dedupe-check). One identical re-attempt: the platform's own dedupe is the oracle.
+  // 8. Verdict. The platform's own 201 published:true IS the publish confirmation —
+  // a digest missed inside the 45s read-back window is listing lag (minutes), not a
+  // failed send. The old code cried SEND_FAILED here (12/12 false alarms on
+  // 2026-09-27) and then "disambiguated" with an identical re-attempt — a re-send
+  // disguised as a check. That oracle does not speak: 9/9 re-attempts answered 201
+  // with no dedupe error and no second copy. Per the standing READ-BACK RULES the
+  // only next step after a 201 is a FRESH listing, minutes later — never a re-send.
+  // (The depth-5 ghost class that once justified the re-attempt is now refused in
+  // pre-flight, step 3b.)
   const claimedPublish = !!(sendRes && (sendRes.published || (sendRes.response && sendRes.response.status === 201)));
-  if (claimedPublish || (sendThrew && /may have landed/i.test(String(sendThrew.message || sendThrew)))) {
-    try {
-      const d = await Promise.race([
-        api.createComment(POST_ID, text, Object.assign({ writes: true }, PARENT_ID ? { parent_id: PARENT_ID } : {})),
-        sleep(SEND_TIMEOUT_MS).then(() => { throw new Error('DEDUPE_CHECK_TIMEOUT'); })
-      ]);
-      result.dedupeCheck = { published: !!(d && d.published), status: d && d.response && d.response.status };
-    } catch (e) {
-      const msg = String(e && e.message || e);
-      result.dedupeCheck = { threw: msg };
-      if (/already said|duplicate|dedupe/i.test(msg)) { result.verdict = 'LANDED_VIA_DEDUPE (listing lag — single live copy, do not re-post)'; finish(0); return; }
-    }
-  }
+  if (claimedPublish) fail('PUBLISH_CONFIRMED: 201 published:true from the platform — its own publish confirmation; digest not visible in the 45s read-back window (listing lag runs minutes); confirm with a FRESH listing before any retry, never re-send blind', 4);
 
   if (sendThrew) fail('AMBIGUOUS: send threw and read-back found nothing — inspect before any retry', 4, sendThrew);
-  fail('SEND_FAILED: no publish confirmation and nothing visible — reply stays due', 3);
+  fail('SEND_FAILED: no publish confirmation from the platform and nothing visible — reply stays due', 3);
 })().catch(e => fail('SCRIPT_ERROR', 3, e));

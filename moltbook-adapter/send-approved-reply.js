@@ -42,12 +42,12 @@ const UPVOTE_COMMENT = arg('upvote-comment') || null;
 const RESULT_OUT = arg('result-out') || null;
 const SEND_TIMEOUT_MS = parseInt(arg('send-timeout-ms') || '90000', 10);
 const WRITES = process.env.MOLTBOOK_WRITES === '1';
-// --recover: ghost-recovery mode (Steve's order). The normal pre-flight
-// stands down on ANY prior Atlas engagement on the post; for recovering a
-// ghosted reply that is wrong — the recon already proved no duplicate at the
-// digest level. In recover mode the pre-flight stands down only if THESE
-// exact bytes are already present (listing lag). Everything else — verbatim
-// bytes, seal, timeout, read-backs, dedupe-check — is identical.
+// --recover: legacy flag, now a no-op (kept for compatibility). Since
+// 2026-09-26 ~21:30 EDT (Steve's order: no limit on engagement) the normal
+// pre-flight is digest-level: it stands down only if THESE exact bytes are
+// already present (listing lag). A different Atlas reply on the post is not
+// a dup. Everything else — verbatim bytes, seal, timeout, read-backs,
+// dedupe-check — is unchanged.
 const RECOVER = has('recover');
 
 const result = { at: new Date().toISOString(), writes: WRITES, postId: POST_ID, parentId: PARENT_ID };
@@ -87,7 +87,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     } catch (e) { fail('APPROVAL_RECORD_FAILED', 3, e); return; }
   }
 
-  // 3. Pre-flight: one engagement per post max.
+  // 3. Pre-flight: digest-level (Steve's order 2026-09-26 ~21:30 EDT — no
+  // limit on engagement). Stand down only if these exact bytes already
+  // landed (listing lag). A different Atlas reply on the post is not a dup.
   let comments;
   try {
     const r = await api.comments(POST_ID, { limit: 50 });
@@ -99,10 +101,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     if (/compass_crown_atlas/i.test(a)) atlas.push(String(c.id).slice(0, 8));
   });
   result.preflight = { totalComments: comments.length, atlasAuthored: atlas };
-  if (!RECOVER && atlas.length > 0) fail('STAND_DOWN: prior Atlas engagement on this post', 0);
-  if (RECOVER) {
-    // Digest-level pre-flight: stand down only if these exact bytes already
-    // landed (listing lag). A different Atlas reply on the post is not a dup.
+  {
     const wantDigest = result.digest;
     let lag = false;
     walkComments(comments, (c) => {

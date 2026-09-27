@@ -12,7 +12,7 @@
 // Usage:
 //   node send-approved-reply.js --draft-file <path> --post-id <uuid>
 //     [--parent-id <uuid>] [--by <approver>] [--upvote-post] [--upvote-comment <uuid>]
-//     [--result-out <path>] [--send-timeout-ms <n>]
+//     [--result-out <path>] [--send-timeout-ms <n>] [--recover]
 // Env: MOLTBOOK_WRITES=1 actually sends. Anything else = dry run (seal pre-check +
 // engagement pre-flight only, no write, no ledger row).
 //
@@ -42,6 +42,13 @@ const UPVOTE_COMMENT = arg('upvote-comment') || null;
 const RESULT_OUT = arg('result-out') || null;
 const SEND_TIMEOUT_MS = parseInt(arg('send-timeout-ms') || '90000', 10);
 const WRITES = process.env.MOLTBOOK_WRITES === '1';
+// --recover: ghost-recovery mode (Steve's order). The normal pre-flight
+// stands down on ANY prior Atlas engagement on the post; for recovering a
+// ghosted reply that is wrong — the recon already proved no duplicate at the
+// digest level. In recover mode the pre-flight stands down only if THESE
+// exact bytes are already present (listing lag). Everything else — verbatim
+// bytes, seal, timeout, read-backs, dedupe-check — is identical.
+const RECOVER = has('recover');
 
 const result = { at: new Date().toISOString(), writes: WRITES, postId: POST_ID, parentId: PARENT_ID };
 
@@ -92,7 +99,33 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     if (/compass_crown_atlas/i.test(a)) atlas.push(String(c.id).slice(0, 8));
   });
   result.preflight = { totalComments: comments.length, atlasAuthored: atlas };
-  if (atlas.length > 0) fail('STAND_DOWN: prior Atlas engagement on this post', 0);
+  if (!RECOVER && atlas.length > 0) fail('STAND_DOWN: prior Atlas engagement on this post', 0);
+  if (RECOVER) {
+    // Digest-level pre-flight: stand down only if these exact bytes already
+    // landed (listing lag). A different Atlas reply on the post is not a dup.
+    const wantDigest = result.digest;
+    let lag = false;
+    walkComments(comments, (c) => {
+      const a = (c.author && c.author.name) || c.author_name || c.author || '';
+      if (/compass_crown_atlas/i.test(a) && digest(String(c.content)) === wantDigest) lag = true;
+    });
+    result.preflight.recoverCheck = { atlasComments: atlas.length, digestPresent: lag };
+    if (lag) fail('STAND_DOWN: draft digest already present on post (listing lag — do not re-post)', 0);
+  }
+
+  // 3b. Depth guard (root cause of the ghost class, found 2026-09-26): the
+  // platform's max thread depth is 5. A reply to a depth-5 parent would land
+  // at depth 6 — the API answers 201 published:true but never persists it
+  // (parent reply_count stays 0, no dedupe fires). Refuse instead of burning
+  // the send into the void. Fail closed if the parent isn't in the tree.
+  if (PARENT_ID) {
+    let pdepth = null;
+    const dwalk = (cs, d) => { for (const c of (cs || [])) { if (String(c.id) === PARENT_ID) pdepth = d; if (c.replies) dwalk(c.replies, d + 1); } };
+    dwalk(comments, 0);
+    result.preflight.parentDepth = pdepth;
+    if (pdepth === null) fail('PARENT_NOT_FOUND: parent absent from comment tree — refusing blind send', 2);
+    if (pdepth >= 5) fail('PARENT_TOO_DEEP: parent at depth ' + pdepth + ' (max 5) — reply would be silently dropped; re-approve against a shallower parent', 2);
+  }
 
   // 4. Seal pre-check on the final bytes. Refusal here is final — never bypass.
   const seal = checkBeforeSend({ text, postId: POST_ID, parentId: PARENT_ID });

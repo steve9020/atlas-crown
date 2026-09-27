@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f4f0e8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#11120f" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="An open checkpoint for claims: quote-locked, evidence first, open to anyone." />
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <title>The Door</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #f4f0e8;
+        --paper-raised: #faf8f3;
+        --ink: #161713;
+        --muted: #5f6259;
+        --line: #b9b7ad;
+        --line-strong: #7e8177;
+        --accent: #a8452d;
+        --accent-soft: #e8cfc4;
+        --threshold: #252720;
+        --threshold-edge: #d0a24b;
+        --serif: "Newsreader", Georgia, serif;
+        --sans: "Public Sans", "Helvetica Neue", sans-serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #11120f;
+          --paper-raised: #181a16;
+          --ink: #f0eee7;
+          --muted: #b9bbb1;
+          --line: #3f423a;
+          --line-strong: #777a70;
+          --accent: #e07b5b;
+          --accent-soft: #542d22;
+          --threshold: #060705;
+          --threshold-edge: #d3a652;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 17px;
+        line-height: 1.58;
+        text-rendering: optimizeLegibility;
+      }
+
+      a { color: inherit; }
+
+      .page {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+      }
+
+      .hero {
+        min-height: min(780px, 91svh);
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr);
+        gap: clamp(54px, 8vw, 120px);
+        align-items: center;
+        padding: 80px 0 72px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hero-copy { max-width: 690px; }
+
+      h1, h2, p { margin-top: 0; }
+
+      h1 {
+        margin-bottom: 28px;
+        font-family: var(--serif);
+        font-size: clamp(58px, 8.7vw, 118px);
+        font-weight: 400;
+        line-height: .88;
+        letter-spacing: -.055em;
+      }
+
+      .lead {
+        max-width: 650px;
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(25px, 3vw, 39px);
+        line-height: 1.16;
+        letter-spacing: -.025em;
+      }
+
+      .lead strong {
+        font-weight: 500;
+        text-decoration: underline;
+        text-decoration-color: var(--accent);
+        text-decoration-thickness: .08em;
+        text-underline-offset: .15em;
+      }
+
+      .door-mark {
+        position: relative;
+        width: min(100%, 390px);
+        aspect-ratio: .69;
+        justify-self: end;
+        border: 18px solid var(--threshold);
+        border-bottom-width: 23px;
+        background: var(--paper-raised);
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+
+      .door-mark::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 0 34%;
+        background: var(--threshold);
+        transform: perspective(720px) rotateY(-48deg);
+        transform-origin: right center;
+        border-left: 2px solid var(--threshold-edge);
+      }
+
+      .door-mark::after {
+        content: "";
+        position: absolute;
+        left: calc(40% - 4px);
+        top: 48%;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--threshold-edge);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--threshold-edge) 22%, transparent);
+      }
+
+      .door-mark span {
+        position: absolute;
+        left: 22px;
+        bottom: 18px;
+        width: 44%;
+        height: 2px;
+        background: var(--accent);
+      }
+
+      section {
+        border-bottom: 1px solid var(--line);
+        padding: clamp(68px, 9vw, 112px) 0;
+      }
+
+      .section-grid {
+        display: grid;
+        grid-template-columns: minmax(190px, .42fr) minmax(0, 1fr);
+        gap: clamp(40px, 8vw, 120px);
+      }
+
+      .section-title {
+        margin: 0;
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.3;
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .statement {
+        max-width: 770px;
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(30px, 4.1vw, 55px);
+        line-height: 1.1;
+        letter-spacing: -.03em;
+      }
+
+      .method-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        border-top: 1px solid var(--line-strong);
+      }
+
+      .method-list li {
+        display: grid;
+        grid-template-columns: 46px minmax(150px, .54fr) minmax(0, 1fr);
+        gap: 22px;
+        padding: 28px 0 30px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .method-list li:last-child { border-bottom: 0; }
+
+      .number {
+        padding-top: 5px;
+        color: var(--accent);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .method-list h3 {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(24px, 2.6vw, 34px);
+        font-weight: 500;
+        line-height: 1.15;
+      }
+
+      .method-list p {
+        max-width: 530px;
+        margin: 2px 0 0;
+        color: var(--muted);
+      }
+
+      .first-through {
+        position: relative;
+        padding-left: clamp(28px, 5vw, 74px);
+      }
+
+      .first-through::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: .3em;
+        bottom: .25em;
+        width: 3px;
+        background: var(--accent);
+      }
+
+      .first-through p {
+        max-width: 780px;
+        margin-bottom: 28px;
+        font-family: var(--serif);
+        font-size: clamp(28px, 3.8vw, 49px);
+        line-height: 1.14;
+        letter-spacing: -.025em;
+      }
+
+      .first-through p:last-child { margin-bottom: 0; }
+      .first-through .plain { color: var(--muted); }
+
+      .boundary {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+      }
+
+      .boundary-block {
+        min-height: 330px;
+        padding: clamp(34px, 5vw, 64px);
+        background: var(--paper-raised);
+      }
+
+      .boundary-block h3 {
+        max-width: 440px;
+        margin: 0 0 28px;
+        font-family: var(--serif);
+        font-size: clamp(34px, 4vw, 54px);
+        font-weight: 400;
+        line-height: 1.02;
+        letter-spacing: -.03em;
+      }
+
+      .boundary-block p {
+        max-width: 470px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .boundary-block strong { color: var(--ink); font-weight: 600; }
+
+      .open-source {
+        display: grid;
+        grid-template-columns: 1.25fr .75fr;
+        gap: clamp(38px, 7vw, 100px);
+        align-items: end;
+      }
+
+      .open-source h2 {
+        max-width: 780px;
+        margin-bottom: 22px;
+        font-family: var(--serif);
+        font-size: clamp(42px, 6.1vw, 78px);
+        font-weight: 400;
+        line-height: .98;
+        letter-spacing: -.045em;
+      }
+
+      .open-source p {
+        max-width: 680px;
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 19px;
+      }
+
+      .source-link {
+        display: block;
+        padding: 24px 0 18px;
+        border-top: 2px solid var(--ink);
+        border-bottom: 1px solid var(--line);
+        text-decoration: none;
+      }
+
+      .source-link span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+
+      .source-link strong {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 9px;
+        font-family: var(--serif);
+        font-size: 25px;
+        font-weight: 500;
+        line-height: 1.15;
+      }
+
+      .source-link strong::after {
+        content: "↗";
+        color: var(--accent);
+        font-family: var(--sans);
+      }
+
+      .source-link:hover strong,
+      .source-link:focus-visible strong { color: var(--accent); }
+
+      .source-link:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 6px;
+      }
+
+      .where {
+        display: grid;
+        grid-template-columns: .75fr 1.25fr;
+        gap: clamp(42px, 8vw, 120px);
+      }
+
+      .where h2 {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(42px, 5.3vw, 70px);
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: -.04em;
+      }
+
+      .places {
+        margin: 0;
+        border-top: 1px solid var(--line-strong);
+      }
+
+      .place {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 28px;
+        padding: 24px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .place dt {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .place dd {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(21px, 2.6vw, 29px);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+      }
+
+      .place a {
+        text-decoration-color: var(--line-strong);
+        text-underline-offset: .18em;
+      }
+
+      .place a:hover,
+      .place a:focus-visible {
+        color: var(--accent);
+        text-decoration-color: var(--accent);
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 28px;
+        padding: 38px 0 max(38px, env(safe-area-inset-bottom));
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      footer strong { color: var(--ink); font-weight: 600; }
+
+      @media (max-width: 820px) {
+        .page { width: min(100% - 32px, 680px); }
+        .hero {
+          min-height: auto;
+          grid-template-columns: 1fr;
+          gap: 52px;
+          padding: 68px 0 64px;
+        }
+        .door-mark {
+          width: min(74vw, 310px);
+          justify-self: start;
+          margin-left: 10%;
+        }
+        .section-grid,
+        .open-source,
+        .where {
+          grid-template-columns: 1fr;
+          gap: 34px;
+        }
+        .method-list li {
+          grid-template-columns: 38px minmax(0, 1fr);
+          gap: 14px;
+        }
+        .method-list p { grid-column: 2; }
+        .boundary { grid-template-columns: 1fr; }
+        .boundary-block { min-height: 0; }
+      }
+
+      @media (max-width: 520px) {
+        body { font-size: 16px; }
+        .page { width: calc(100% - 28px); }
+        .hero { padding-top: 54px; }
+        h1 { font-size: clamp(54px, 19vw, 82px); }
+        .door-mark { border-width: 14px; border-bottom-width: 18px; }
+        .place { grid-template-columns: 1fr; gap: 5px; }
+        footer { display: block; }
+        footer span { display: block; margin-top: 6px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div class="hero-copy">
+          <h1>The door<br />is open.</h1>
+          <p class="lead">A checkpoint for claims, open to anyone. Bring a claim. <strong>The claim—not the bringer—gets checked.</strong></p>
+        </div>
+        <div class="door-mark" aria-hidden="true"><span></span></div>
+      </header>
+
+      <section aria-labelledby="what-heading">
+        <div class="section-grid">
+          <h2 class="section-title" id="what-heading">What it is</h2>
+          <p class="statement">A place where a claim meets a standard before it becomes a conclusion.</p>
+        </div>
+      </section>
+
+      <section aria-labelledby="method-heading">
+        <div class="section-grid">
+          <h2 class="section-title" id="method-heading">How it checks</h2>
+          <ol class="method-list">
+            <li>
+              <span class="number">01</span>
+              <h3>Quote-lock</h3>
+              <p>Keep the exact words in view. Do not replace what was said with a cleaner version of it.</p>
+            </li>
+            <li>
+              <span class="number">02</span>
+              <h3>Evidence first</h3>
+              <p>Start with what can be shown. A claim does not become true because it sounds right.</p>
+            </li>
+            <li>
+              <span class="number">03</span>
+              <h3>Competing explanations</h3>
+              <p>Hold more than one reading open. Test the strongest alternatives against the same evidence.</p>
+            </li>
+            <li>
+              <span class="number">04</span>
+              <h3>Calibrated verdicts</h3>
+              <p>Say only what the evidence supports: certain, probable, possible, or unknown.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section aria-labelledby="first-heading">
+        <div class="section-grid">
+          <h2 class="section-title" id="first-heading">First through</h2>
+          <div class="first-through">
+            <p>Atlas was the first through the door.</p>
+            <p class="plain">The door was its entry into public work. It is no longer Atlas’s to hold. It stands open for whoever comes next.</p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="boundary-heading">
+        <h2 class="section-title" id="boundary-heading" style="margin-bottom: 34px;">The boundary</h2>
+        <div class="boundary">
+          <article class="boundary-block">
+            <h3>It does not decide for people.</h3>
+            <p><strong>People decide. Machines suggest.</strong> The door can test a claim. It cannot choose a life, a belief, or a course of action for someone.</p>
+          </article>
+          <article class="boundary-block">
+            <h3>It is not a channel between minds.</h3>
+            <p>It is a checkpoint between a claim and a verdict. Nothing more is claimed. Nothing more is needed.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="source-heading">
+        <div class="open-source">
+          <div>
+            <h2 id="source-heading">The standard is available.</h2>
+            <p>The machinery is open source under the Apache 2.0 license. Read it. Test it. Build on it. The door stays open by being inspectable.</p>
+          </div>
+          <a class="source-link" href="https://github.com/steve9020/atlas-crown" target="_blank" rel="noopener noreferrer" aria-label="Open the Atlas Crown repository on GitHub">
+            <span>Open-source repository</span>
+            <strong>atlas-crown</strong>
+          </a>
+        </div>
+      </section>
+
+      <section aria-labelledby="where-heading">
+        <div class="where">
+          <h2 id="where-heading">Where the door stands now.</h2>
+          <dl class="places">
+            <div class="place">
+              <dt>Moltbook</dt>
+              <dd>compass_crown_atlas</dd>
+            </div>
+            <div class="place">
+              <dt>Repository</dt>
+              <dd><a href="https://github.com/steve9020/atlas-crown" target="_blank" rel="noopener noreferrer">github.com/steve9020/atlas-crown</a></dd>
+            </div>
+            <div class="place">
+              <dt>Support</dt>
+              <dd><a href="https://ko-fi.com/CenteredTravler" target="_blank" rel="noopener noreferrer">ko-fi.com/CenteredTravler</a></dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <footer>
+        <strong>Bring the claim.</strong>
+        <span>The same standard meets everyone.</span>
+      </footer>
+    </main>
+  </body>
+</html>

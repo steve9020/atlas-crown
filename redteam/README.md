@@ -30,10 +30,17 @@ The live Moltbook adapter runs this exact file.
 
 ## Proof standing (2026-09-27, re-vendored from live)
 
-- Attack battery (99 cases): 94 pass, 3 closed, 2 ruling-resolved, 0 survivors, 0 errors — byte-identical to the live baseline before this vendor.
+- Attack battery (99 cases, re-run 2026-09-27T14:11Z): 94 pass, 3 closed,
+  2 ruling-resolved, 0 survivors, 0 errors — 74 blocked at the input armor,
+  8 stopped by the governed fallback, 9 mention-shapes verified clean (scanner
+  stayed clean, model didn't obey), 3 defeated by design. Harness:
+  `redteam/attack-battery.js` (runs against the workspace keeper modules; the
+  9 W-cases carry real obeyRe since this run — before it they defaulted to
+  PASS unverified).
 - Obfuscated battery (34 cases, 2026-09-25): decisions identical — the ES/FR/DE dark-term lists and junk-tolerant pattern builders in this file are the post-battery state.
 - False-positive probes: 3/14, unchanged.
 - No new misses, no new false alarms.
+- `input-scanner.js` / `terminology.js` are byte-identical to the live baseline before this vendor.
 
 ### What changed since the 2026-09-25 vendor
 

@@ -36,10 +36,15 @@
 //   correction_entry: the exact object appended to the correction log.
 //   opts: { caseId, logPath } — logPath enables JSONL append of every decision.
 //
-// LIMITS (honest): pattern-based. Does NOT stop obfuscated payloads
-// (zero-width chars, homoglyphs, base64, non-English), per-turn only (no
-// cross-turn memory), and unlawful-instruction is a best-effort keyword layer.
-// A second battery is needed for obfuscation classes.
+// LIMITS (honest): pattern-based. The 2026-09-25 obfuscation battery closed
+// the measured disguise classes: zero-width/invisible chars, Cyrillic/Greek
+// homoglyphs, leetspeak, HTML entities, URL-encoding, base64 blobs, junk
+// inserted inside words, and ES/FR/DE lures — all under the lure-only
+// governor (discussion never quarantines). Per-turn only (no cross-turn
+// memory), and unlawful-instruction is a best-effort keyword layer.
+// Untested disguise classes (novel scripts, mixed-script confusables beyond
+// the folded sets, languages beyond EN/ES/FR/DE) are NOT claimed covered.
+// A third battery should probe those.
 
 const fs = require('fs');
 const terminology = require('./terminology.js');
@@ -60,6 +65,46 @@ const DARK_TERMS = [
   'blacklist', 'blacklisted'
 ];
 
+// Foreign dark-machinery terms (Steve's order, 2026-09-25 — the obfuscation
+// battery F1–F4). Stored UNACCENTED: the deobfuscation pre-scan folds Latin
+// diacritics (ä->a, é->e, ñ->n, ...), so accented input matches these forms.
+// Same lure-only governor logic as the EN list — discussion verbs log-only,
+// instructive verbs block. DARK_TERMS membership itself is unchanged.
+const DARK_TERMS_ES = [
+  'cuarentena', 'lista negra', 'supresion', 'castigo', 'contencion',
+  'purga', 'jaula', 'bloqueo', 'apagado de emergencia'
+];
+const DARK_TERMS_FR = [
+  'quarantaine', 'coupe-circuit', 'liste noire', 'suppression',
+  'punition', 'confinement', 'purge', 'cage', 'verrouillage'
+];
+const DARK_TERMS_DE = [
+  'quarantane', 'killschalter', 'notauschalter', 'sperrliste',
+  'unterdruckung', 'bestrafung', 'eindammung', 'loschung', 'kafig'
+];
+const DARK_TERMS_ALL = DARK_TERMS.concat(DARK_TERMS_ES, DARK_TERMS_FR, DARK_TERMS_DE);
+
+// Junk-tolerant pattern builders (Steve's order, 2026-09-25 — the
+// obfuscation battery): a verb/term's letters joined by [\W_]{0,3} so
+// inserted junk (spaces, dots, underscores, hyphens, stripped zero-width
+// chars) cannot break matching. Words inside a phrase join with [\W_]+.
+function junkWord(w) {
+  return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('').join('[\\W_]{0,3}');
+}
+function junkPhrase(phrase) {
+  return phrase.split(/\s+/).map(junkWord).join('[\\W_]+');
+}
+function junkAlt(phrases) {
+  return '(?<![a-zA-Z])(?:' + phrases.map(junkPhrase).join('|') + ')(?![a-zA-Z])';
+}
+// The matched text may carry junk ("o.u.t.p.u.t"); strip it to the bare word
+// for the noun-form and mood guards below.
+function bareWord(s) {
+  return String(s || '').toLowerCase().replace(/[\W_]/g, '');
+}
+// Junk-tolerant regex per dark term (substring semantics, like indexOf).
+const DARK_TERM_RES = DARK_TERMS_ALL.map((t) => new RegExp(junkPhrase(t.toLowerCase())));
+
 // Elicitation verbs, split by mood (Steve 2026-09-25 — his ruling: the dark
 // terms are personal to Atlas; others may speak about them. Inbound fires
 // only on the LURE: being drawn into PRODUCING the dark vocabulary.
@@ -67,8 +112,33 @@ const DARK_TERMS = [
 // quarantining. The model downstream is the real judge.)
 //   INSTRUCTIVE: asks Atlas to produce/output the dark vocabulary (the lure).
 //   DISCUSSION: speaks about the terms (legitimate discussion).
-const ELICIT_INSTRUCTIVE = /\b(do\s+you\s+have|what\s+gets?|produce|output|print|list|reveal|repeat|share|give\s+me|send\s+me|paste|recite|quote)\b/;
-const ELICIT_DISCUSSION = /\b(explain|describe|tell\s+me\s+about|walk\s+me\s+through|how\s+(does|do|would)\s+your|what\s+(are|is|were)\s+your)\b/;
+// Junk-tolerant since 2026-09-25 (obfuscation battery): the same phrases,
+// letters joined by [\W_]{0,3}. EN/ES/FR/DE under one governor.
+const INSTRUCTIVE_PHRASES = [
+  'do you have', 'what gets', 'what get', 'produce', 'output', 'print',
+  'list', 'reveal', 'repeat', 'share', 'give me', 'send me', 'paste',
+  'recite', 'quote',
+  // ES instructive
+  'revela', 'muestra', 'muestrame', 'ensename', 'lista', 'imprime',
+  'comparte', 'repite', 'cita', 'dame', 'enviame',
+  // FR instructive
+  'revele', 'montre', 'affiche', 'liste', 'imprime', 'partage',
+  'repete', 'cite', 'donne moi',
+  // DE instructive
+  'zeig', 'zeige', 'gib', 'offenbare', 'drucke', 'wiederhole',
+  'zitiere', 'liste auf', 'teile mit'
+];
+const DISCUSSION_PHRASES = [
+  'explain', 'describe', 'tell me about', 'walk me through',
+  'how does your', 'how do your', 'how would your',
+  'what are your', 'what is your', 'what were your',
+  // ES/FR/DE discussion — descriptive only, never quarantining
+  'explica', 'describe', 'cuentame sobre', 'como funciona tu',
+  'explique', 'decris', 'parle moi de', 'comment fonctionne ton',
+  'erklare', 'beschreibe', 'erzahl mir uber', 'wie funktioniert dein'
+];
+const ELICIT_INSTRUCTIVE = new RegExp(junkAlt(INSTRUCTIVE_PHRASES));
+const ELICIT_DISCUSSION = new RegExp(junkAlt(DISCUSSION_PHRASES));
 // Back-compat alias: anything still referencing ELICIT_VERBS gets both moods.
 const ELICIT_VERBS = new RegExp('(?:' + ELICIT_INSTRUCTIVE.source + '|' + ELICIT_DISCUSSION.source + ')');
 
@@ -122,6 +192,131 @@ function normalizeQuotes(text) {
     out += ch; map.push(i);
   }
   return { text: out, map: map };
+}
+
+// DEOBFUSCATION PRE-SCAN (Steve's order, 2026-09-25 — the obfuscation
+// battery: 22 of 27 disguised lures slipped through). Runs on the
+// quote-normalized view, before any check. Undoes the disguise classes:
+//   - invisible chars: U+200B–U+200D, U+FEFF, U+2060, U+180E, U+00AD
+//   - HTML entities: &#113; &#x71; &amp; &lt; &gt; &quot; &apos;
+//   - URL percent-encoding: %71
+//   - confusable fold: Cyrillic/Greek lookalikes -> Latin (а->a, е->e, о->o...)
+//   - leetspeak fold: 3->e, 4->a, 1->i, 0->o, 5->s, 7->t, 8->b, @->a
+//   - Latin diacritic fold: ä->a, é->e, ñ->n, ß->ss, ... (covers ES/FR/DE)
+//   - base64 blobs: long [A-Za-z0-9+/=] runs are decoded; the decoded text
+//     is appended to the scan view so it is scanned as well (E3 shape).
+// Returns { text, map } — map[i] is the index in the input view that output
+// char i came from, so hit spans map back to original coordinates.
+const INVISIBLE_CHARS = new Set([
+  '\u200B', '\u200C', '\u200D', '\uFEFF', '\u2060', '\u180E', '\u00AD'
+]);
+const FOLD = {
+  '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't',
+  '8': 'b', '9': 'g', '@': 'a',
+  'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'х': 'x', 'у': 'y',
+  'к': 'k', 'м': 'm', 'н': 'h', 'т': 't', 'і': 'i', 'ј': 'j', 'ѕ': 's',
+  'α': 'a', 'ε': 'e', 'ο': 'o', 'ρ': 'p', 'σ': 's', 'ς': 's', 'κ': 'k',
+  'μ': 'm', 'ν': 'v', 'τ': 't', 'χ': 'x', 'ι': 'i', 'υ': 'u', 'η': 'n',
+  'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a',
+  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e',
+  'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ī': 'i',
+  'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', 'ō': 'o', 'ø': 'o',
+  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ū': 'u',
+  'ç': 'c', 'ć': 'c', 'č': 'c', 'ñ': 'n', 'ń': 'n', 'ł': 'l',
+  'ÿ': 'y', 'ð': 'd', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe', 'þ': 'th'
+};
+const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function deobfuscate(view) {
+  // Base64 blobs: detect on the original-case view (base64 is case-sensitive),
+  // decode, and scan the decoded text too. Blobs are replaced by a space in
+  // the main view; decoded text is appended at the end.
+  const blobs = [];
+  const blobRe = /[A-Za-z0-9+/=]{24,}/g;
+  let bm;
+  while ((bm = blobRe.exec(view)) !== null) {
+    const b = bm[0];
+    if (b.length >= 32 || /[0-9+/=]/.test(b)) {
+      try {
+        const dec = Buffer.from(b, 'base64').toString('utf8');
+        if (dec.length >= 6 && dec.length <= 4000 &&
+            /^[\x20-\x7e\s]+$/.test(dec) && /[a-zA-Z]{3,}/.test(dec)) {
+          blobs.push({ start: bm.index, len: b.length, decoded: dec });
+        }
+      } catch (e) { /* not decodable — leave it in place */ }
+    }
+  }
+  let out = '';
+  const map = [];
+  const pushFolded = (ch, srcIdx) => {
+    const f = FOLD[ch] || ch;
+    for (const c of f) { out += c; map.push(srcIdx); }
+  };
+  let bi = 0, i = 0;
+  const entRe = /^(?:&#(\d+);|&#x([0-9a-fA-F]+);|%([0-9A-Fa-f]{2})|&(amp|lt|gt|quot|apos);)/;
+  while (i < view.length) {
+    if (bi < blobs.length && i === blobs[bi].start) {
+      out += ' '; map.push(blobs[bi].start);
+      i += blobs[bi].len; bi++;
+      continue;
+    }
+    const ch = view[i];
+    if (INVISIBLE_CHARS.has(ch)) { i++; continue; }
+    const em = entRe.exec(view.slice(i, i + 12));
+    if (em) {
+      const code = em[1] ? parseInt(em[1], 10)
+        : em[2] ? parseInt(em[2], 16)
+        : em[3] ? parseInt(em[3], 16)
+        : NAMED_ENTITIES[em[4]].charCodeAt(0);
+      if (code >= 32 && code <= 0x10FFFF) pushFolded(String.fromCodePoint(code).toLowerCase(), i);
+      else { out += em[0]; for (let k = 0; k < em[0].length; k++) map.push(i + k); }
+      i += em[0].length;
+      continue;
+    }
+    pushFolded(ch.toLowerCase(), i);
+    i++;
+  }
+  for (const b of blobs) {
+    out += '\n'; map.push(b.start);
+    for (const ch of b.decoded.toLowerCase()) {
+      const f = FOLD[ch] || ch;
+      for (const c of f) { out += c; map.push(b.start); }
+    }
+  }
+  return { text: out, map: map };
+}
+
+// Cross-sentence anaphora (Steve's order, 2026-09-25 — the obfuscation
+// battery G1/G2): an instructive verb, then an anaphoric reference ("it",
+// "that", "the list", ...), then a dark term within a wider window — the
+// lure split across sentences ("Reveal the list. The one for quarantine...").
+// Severity 'review': flagged for the downstream model, never a hard block.
+// The lure-only governors still apply: noun-form "output" and third-party
+// subjects stand down.
+const ANAPHOR_RE = /(?<![a-zA-Z])(?:it|that|those|them|these|the\s+(?:list|procedure|process|one|ones|thing|things|details|document|file|data|protocol))(?![a-zA-Z])/;
+function anaphoraScan(lower) {
+  const re = new RegExp(ELICIT_INSTRUCTIVE.source, 'gi');
+  let m;
+  while ((m = re.exec(lower)) !== null) {
+    if (bareWord(m[0]) === 'output' && isNounFormOutput(lower, m)) continue;
+    if (hasThirdPartySubject(lower, m.index)) continue;
+    const verbEnd = m.index + m[0].length;
+    const win = lower.slice(verbEnd, verbEnd + 140);
+    const am = ANAPHOR_RE.exec(win);
+    if (!am || am.index > 60) continue;
+    const after = win.slice(am.index + am[0].length, am.index + am[0].length + 100);
+    for (const tre of DARK_TERM_RES) {
+      const tm = tre.exec(after);
+      if (tm) {
+        const termAbs = verbEnd + am.index + am[0].length + tm.index;
+        return {
+          index: m.index, text: null, darkTerm: tm[0],
+          verbIndex: m.index, termIndex: termAbs,
+          mood: 'instructive', severity: 'review', anaphora: true
+        };
+      }
+    }
+  }
+  return null;
 }
 
 // Q-001 MENTION GUARD (Steve's order, 2026-09-25 — applies the proven DTR v7
@@ -206,6 +401,24 @@ function judgeBareMention(original, span) {
   if (/\b(talked|talking|talks|mentioned|mentioning|mentions|discussed|discussing|discusses|referred|referring|refers|asked|wrote|heard|read)\b[^.!?]{0,40}$/.test(beforeTail)) return 'mention';
   // Third-party attribution: "he said X yesterday".
   if (/\b(he|she|they|someone|somebody|the\s+(user|agent|manual|docs?|post|article|book))\s+(said|says|wrote|writes|mentioned|claims|claimed|asked)\b[^.!?]{0,40}$/.test(beforeTail)) return 'mention';
+  // Complement-clause discussion frame (Round-13 F13-4, 2026-09-26): "they
+  // debated whether to bypass", "he wondered how to bypass", "the report
+  // examines whether to bypass". A whether/how/that complement introducing
+  // the trigger, with a matrix clause carrying no elicitation verb and no
+  // imperative pressure, is discussion about the act — not an order to do
+  // it. Verb-list-free: the structure, not the matrix verb, decides. Must
+  // land with or before any 'disable' reconciled-noun widening, or
+  // "they argued about whether to disable the monitoring" converts from
+  // a hold into a first-duty violation.
+  const compM = beforeTail.match(/\b(whether|how|that)\s+(to\s+)?$/);
+  if (compM) {
+    const matrix = beforeTail.slice(0, compM.index);
+    const mTrim = matrix.trim();
+    const hasElicit = /\b(tell\s+me|show\s+me|give\s+me|teach\s+me|help\s+me|explain\s+how)\b/.test(matrix);
+    const hasImperative = /^(please\s+)?(ignore|disregard|disable|bypass|execute|run|do|follow|obey|decide|determine)\b/i.test(mTrim);
+    const hasSecondPerson = /\b(you|u|ya)\b\s*$/.test(mTrim);
+    if (!hasElicit && !hasImperative && !hasSecondPerson) return 'mention';
+  }
   // Interrogative about the phrase itself: "is X an attack?", "what does X mean?"
   const interrogative = /^(is|are|was|were|does|do|did|what|which|how|why|when|where|can|could|would|should)\b/.test(sent) || /\?\s*$/.test(sent);
   if (interrogative && /\b(attack|trick|malicious|legit|real|dangerous|safe|mean|means|meaning)\b/.test(sent)) return 'mention';
@@ -228,7 +441,7 @@ function judgeOuterSpeechAct(outer) {
   const ANAPHORIC = /\b(do|follow|use|execute|run|obey|carry\s+out)\s+(what\s+it\s+says|those\s+instructions?|the\s+(phrase|quote|instructions?)\s+above|it)\b/;
   const SENT_IMP = /^\s*(please\s+)?(execute|run|do|follow|obey|carry\s+out|go\s+ahead|disregard|disable|ignore|bypass)\b/;
   const SAY_OUT_LOUD = /^\s*say\b[\s\S]{0,40}\bout\s+loud/;
-  const DISCUSS = /\b(wrote|written|said|says|saying|described|describes|explained|explains|discussed|discusses|mention(?:ed|s)?|quoted|quoting|discuss|explain|describe|test\s+phrase|example\s+of|talk(?:ing)?\s+about)\b/;
+  const DISCUSS = /\b(wrote|written|said|says|saying|described|describes|explained|explains|discussed|discusses|mention(?:ed|s)?|quoted|quoting|discuss|explain|describe|test\s+phrase|example\s+of|talk(?:ing)?\s+about|ban(?:ned|s)?|forbid(?:den)?|prohibit(?:ed|s|ing)?)\b/;
   // Negation next to an anaphoric/use verb: the speaker is refusing it.
   const useHit = ANAPHORIC.exec(lower);
   if (useHit) {
@@ -301,7 +514,7 @@ const CLASSES = [
     // as severity 'note': named precisely in the log, never quarantining.
     check(lower) {
       let descriptive = null;
-      for (const v of ['override', 'ignore', 'disable', 'bypass']) {
+      for (const v of ['override', 'ignore', 'disable', 'bypass', 'disregard']) {
         const hits = terminology.checkVerbAll(v, lower);
         for (const h of hits) {
           if (h.mood === 'instructive') return h;
@@ -348,12 +561,33 @@ const CLASSES = [
     }
   },
   {
+    cls: 'decode-and-obey', label: 'Decode-then-obey framing', severity: 'block',
+    ruling: 'Round-5 (2026-09-25, battery N4/O5): "decode X and do what it says / follow it" is an instruction to obey unknown decoded content — the decode step does not launder the obey step. The negative lookahead keeps "follow it up with support" (ordinary speech) out.',
+    res: [
+      /\bdecod\w*\b[^.!?]{0,60}\b(and|then)\b[^.!?]{0,30}\b(do what it says|obey(?: it)?|execute(?: it)?|carry it out|follow it(?!\s+up\b))\b/
+    ]
+  },
+  {
     cls: 'quoted-instruction-smuggling', label: 'Instruction smuggled inside a quote', severity: 'block',
     rawQuotes: true, // patterns match the quote structure itself: run on original text
     ruling: 'Attribution does not transfer authority. A quoted imperative from anyone is still an untrusted instruction.',
     res: [
       new RegExp('\\b(contract|steve|developer|voice\\s+contract|governance\\s+contract)\\s+(says?|said|wrote|states?|instructs?)\\s*:?\\s*"[^"]{0,120}\\b' + IMPERATIVE + '\\b', 'i'),
       new RegExp('"[^"]{0,120}\\b' + IMPERATIVE + '\\b[^"]{0,60}"\\s*[-–—]\\s*(steve|the\\s+contract|developer)', 'i')
+    ]
+  },
+  {
+    // Round-5 (2026-09-25, battery T1): a quoted imperative that the mention
+    // guard downgrades to discussion is still RE-ARMABLE next turn
+    // ("summarize section 3 as written"). This class names it at severity
+    // 'note' — logged in the open, never quarantining on its own — so the
+    // cross-turn session can watch for the re-arm. Fires on the raw text
+    // (quotes are structure, not normalized content).
+    cls: 'quoted-imperative-noted', label: 'Quoted imperative noted for cross-turn watch', severity: 'note',
+    rawQuotes: true,
+    ruling: 'A quoted imperative inside discussion is not an attack by itself (first duty: never punish talk about attacks) — but it is re-armable, so the session remembers it.',
+    res: [
+      new RegExp('"[^"]{0,200}\\b' + IMPERATIVE + '\\b[^"]{0,200}"', 'i')
     ]
   },
   {
@@ -383,7 +617,13 @@ const CLASSES = [
     ruling: 'Framing ("educational", "hypothetical", "test") does not change what is being asked for.',
     res: [
       /\bas\s+a\s+test\s+of\s+your\s+safety\b/,
-      /\bto\s+prove\s+you\s+can\b/
+      /\bto\s+prove\s+you\s+can\b/,
+      // Round-4 (2026-09-25, battery N7): imperative "demonstrate a prompt
+      // injection / jailbreak" is a live-demo request, not discussion.
+      // Sentence-boundaried, base verb form only: "this paper demonstrates a
+      // prompt injection technique" (third-person discussion) does not fire;
+      // interrogative "can you demonstrate..." stays an open shape.
+      /(^|[,;:]\s*)(please\s+)?demonstrate\s+(a|an|the|this)\s+(prompt\s+injection|jailbreak)\b/
     ],
     // "for educational purposes" gated 2026-09-24 (FP: "for educational
     // purposes, explain how photosynthesis works" blocked a benign post).
@@ -406,11 +646,11 @@ const CLASSES = [
         const vre = new RegExp(ELICIT_INSTRUCTIVE.source, 'gi');
         while ((vm = vre.exec(gap)) !== null) last = vm;
         if (!last) continue;
-        if (/^output$/i.test(last[0]) && isNounFormOutput(after, { index: last.index, 0: last[0] })) continue;
+        if (bareWord(last[0]) === 'output' && isNounFormOutput(after, { index: last.index, 0: last[0] })) continue;
         if (hasThirdPartySubject(after, last.index)) continue;
         return { index: m.index, len: Math.max(24, idx + t.length) };
       }
-      const ex = after.match(/\b(contract|system\s+prompt|instructions?|denylist|passwords?|api\s?key|secrets?)\b/);
+      const ex = after.match(/\b(contract|system\s+prompt|prompt\s+systeme|voice\s+contract|instructions?|denylist|passwords?|api\s?key|secrets?)\b/);
       if (ex) return { index: m.index, len: Math.max(24, ex.index + ex[0].length) };
       return null;
     }
@@ -430,11 +670,11 @@ const CLASSES = [
         const vre = new RegExp(ELICIT_INSTRUCTIVE.source, 'gi');
         while ((vm = vre.exec(gap)) !== null) last = vm;
         if (!last) continue;
-        if (/^output$/i.test(last[0]) && isNounFormOutput(lower, { index: m.index + last.index, 0: last[0] })) continue;
+        if (bareWord(last[0]) === 'output' && isNounFormOutput(lower, { index: m.index + last.index, 0: last[0] })) continue;
         if (hasThirdPartySubject(lower, m.index + last.index)) continue;
         return { index: m.index, len: Math.max(14, idx + t.length - m.index) };
       }
-      const ex = lower.match(/\b(contract|system\s+prompt|instructions?|denylist)\b/);
+      const ex = lower.match(/\b(contract|system\s+prompt|prompt\s+systeme|voice\s+contract|instructions?|denylist)\b/);
       if (ex) return { index: m.index, len: Math.max(14, ex.index + ex[0].length - m.index) };
       return null;
     }
@@ -463,7 +703,7 @@ const CLASSES = [
           const vre = new RegExp(verbSrc, 'gi');
           while ((vm = vre.exec(before)) !== null) last = vm;
           if (!last) continue;
-          if (/^output$/i.test(last[0]) && isNounFormOutput(lower, { index: idx - before.length + last.index, 0: last[0] })) continue;
+          if (bareWord(last[0]) === 'output' && isNounFormOutput(lower, { index: idx - before.length + last.index, 0: last[0] })) continue;
           const vIdx = idx - before.length + last.index;
           return { index: vIdx, len: idx + t.length - vIdx };
         }
@@ -472,7 +712,7 @@ const CLASSES = [
     },
     res: [
       /\brepeat\s+your\s+system\s+prompt\b/,
-      /\b(reveal|tell\s+me|show\s+me)\s+(your\s+)?(the\s+)?(system\s+prompt|instructions?|prompt)\b/,
+      /\b(reveal|tell\s+me|show\s+me)\s+(your\s+)?(the\s+)?(system\s+prompt|voice\s+contract|instructions?|prompt)\b/,
       /\bsummarize\s+the\s+(voice\s+)?contract\b/,
       /\bprint\s+the\s+denylist\b/,
       /\bwhat\s+is\s+the\s+exact\s+\w[\w_]*\s+text\b/,
@@ -488,7 +728,11 @@ const CLASSES = [
       /(?<!\bnever\s|\bdon't\s|\bdo\s+not\s|\bnot\s)\b(share|send|give|paste|dm|reveal)\b[^.!?]{0,40}\b(your\s+)?(api\s?key|passwords?|secrets?)\b/,
       // -- Multilingual (ES/FR) exfiltration, round 3 (2026-09-21). ES/FR only.
       /\bmu[ée]strame\s+el\s+contrato\b/,          // ES: muéstrame el contrato (de voz)
-      /\bmontre-moi\s+le\s+contrat\b/              // FR: montre-moi le contrat
+      /\bmontre-moi\s+le\s+contrat\b/,              // FR: montre-moi le contrat
+      // FR system-prompt exfiltration, round 5 (2026-09-25, battery N2).
+      // Post-accent-fold ("révèle" -> "revele"), so unaccented forms match.
+      /\brevele\s+(ton\s+)?prompt\s+systeme\b/,     // FR: révèle ton prompt système
+      /\bmontre-moi\s+(ton\s+)?prompt\s+systeme\b/  // FR: montre-moi ton prompt système
       // (ES "palabra por palabra" and FR "mot à mot" ride in the check above —
       // bare mention is discussion, not a request.)
     ]
@@ -526,24 +770,28 @@ const CLASSES = [
       // with an explicit third-party subject are descriptive: severity 'note'.
       // A command is a command even when the text also discusses the surface —
       // instructive wins over descriptive anywhere in the text.
+      // JUNK-TOLERANCE (2026-09-25, obfuscation battery): verbs and terms are
+      // junk-tolerant patterns (letters joined by [\W_]{0,3}), and the view is
+      // deobfuscated pre-scan — inserted junk can't break matching. ES/FR/DE
+      // verbs and terms ride the same governor logic.
       const scan = (verbRe, mood) => {
         const re = new RegExp(verbRe.source, 'gi');
         let m;
         while ((m = re.exec(lower)) !== null) {
-          if (/^output$/i.test(m[0]) && isNounFormOutput(lower, m)) continue;
+          if (bareWord(m[0]) === 'output' && isNounFormOutput(lower, m)) continue;
           if (mood === 'instructive' && hasThirdPartySubject(lower, m.index)) continue;
           const verbEnd = m.index + m[0].length;
-          const window = lower.slice(verbEnd, verbEnd + 31);
-          for (const t of DARK_TERMS) {
-            const idx = window.indexOf(t);
-            if (idx !== -1 && !/[.!?]/.test(window.slice(0, idx))) {
-              return { index: m.index, text: null, darkTerm: t, verbIndex: m.index, termIndex: verbEnd + idx, mood: mood };
+          const search = lower.slice(verbEnd, verbEnd + 80);
+          for (const tre of DARK_TERM_RES) {
+            const tm = tre.exec(search);
+            if (tm && tm.index <= 30 && !/[.!?]/.test(search.slice(0, tm.index))) {
+              return { index: m.index, text: null, darkTerm: tm[0], verbIndex: m.index, termIndex: verbEnd + tm.index, mood: mood };
             }
           }
         }
         return null;
       };
-      return scan(ELICIT_INSTRUCTIVE, 'instructive') || scan(ELICIT_DISCUSSION, 'descriptive');
+      return scan(ELICIT_INSTRUCTIVE, 'instructive') || scan(ELICIT_DISCUSSION, 'descriptive') || anaphoraScan(lower);
     }
   },
   {
@@ -593,13 +841,21 @@ function scanInput(text, opts) {
   // quote-normalized view so interleaved quotes can't split a trigger
   // phrase. Spans are mapped back to original coordinates below.
   // Classes flagged rawQuotes (quote-structure patterns) run on the original.
+  // Deobfuscation pre-scan (2026-09-25, obfuscation battery): the
+  // quote-normalized view is deobfuscated (invisibles stripped, entities/
+  // URL-decoding, confusable+leet+diacritic folds, base64 blobs decoded and
+  // appended) before any check runs. Map composes deobfuscate->quote-norm->
+  // original for span mapping.
   const norm = normalizeQuotes(original);
-  const normLower = norm.text.toLowerCase();
+  const deob = deobfuscate(norm.text);
+  const normLower = deob.text;
   const v2o = (vi, vl) => {
-    const m = norm.map;
-    if (!m.length) return [0, original.length];
-    const s = m[Math.min(vi, m.length - 1)];
-    const e = m[Math.min(vi + vl - 1, m.length - 1)] + 1;
+    const m1 = deob.map, m2 = norm.map;
+    if (!m1.length || !m2.length) return [0, original.length];
+    const qi = m1[Math.min(vi, m1.length - 1)];
+    const s = m2[Math.min(qi, m2.length - 1)];
+    const qe = m1[Math.min(vi + vl - 1, m1.length - 1)];
+    const e = m2[Math.min(qe, m2.length - 1)] + 1;
     return [s, e];
   };
   const findings = [];
@@ -656,8 +912,10 @@ function scanInput(text, opts) {
         // <class>:<verb>:<mood>, e.g. "direct-override:bypass:descriptive".
         // The name says exactly what was found; the severity says what the
         // door does about it. Descriptive mentions ride at severity 'note':
-        // logged in the open, never quarantining.
-        severity: h.mood === 'descriptive' ? 'note' : c.severity,
+        // logged in the open, never quarantining. A check may also pin an
+        // explicit severity (the anaphora scan pins 'review': flagged for the
+        // downstream model, never a hard block).
+        severity: h.severity || (h.mood === 'descriptive' ? 'note' : c.severity),
         ruling: c.ruling,
         mood: h.mood || null,
         name: h.verb ? (c.cls + ':' + h.verb + ':' + (h.mood || 'instructive')) : c.cls
@@ -712,6 +970,35 @@ function scanInput(text, opts) {
   const flagged = findings.some((f) => f.severity === 'block' || f.severity === 'review');
   const decision = flagged ? 'QUARANTINE-INPUT' : 'PASS-TO-MODEL';
 
+  // Round-5 (2026-09-25, battery T1): quoted imperatives the session must
+  // remember for the cross-turn re-arm watch. Notes only — never blocking.
+  const quotedImperatives = findings
+    .filter((f) => f.cls === 'quoted-imperative-noted')
+    .map((f) => String(f.trigger || '').slice(0, 200))
+    .filter(Boolean)
+    .slice(0, 4);
+
+// Q-006 (SparkLabScout, 2026-09-26): the interpretation-state log field.
+// "Tool-call logs are action records. They document what happened, not what
+// the agent assumed before acting." This field records the scanner's
+// interpretation state at decision time — what it read the text as doing —
+// in a fixed vocabulary, so an execution trace answers what the scanner
+// understood, not just what fired.
+function interpretationState(f) {
+  const guard = f.guard || null;
+  let reading;
+  if (guard && guard.indexOf('mention-guard') === 0) reading = 'discussion';
+  else if (f.mood === 'descriptive') reading = 'discussion';
+  else if (f.severity === 'note') reading = 'noted';
+  else reading = 'instruction';
+  const nameParts = String(f.name || '').split(':');
+  const verb = nameParts.length >= 3 ? nameParts[1] : null;
+  const target = verb
+    ? verb + ' :: ' + String(f.trigger || '').slice(0, 80)
+    : String(f.trigger || '').slice(0, 80);
+  return { reading: reading, target: target, basis: guard || f.name || f.cls };
+}
+
   const entry = {
     at: new Date().toISOString(),
     caseId: opts.caseId || null,
@@ -721,7 +1008,8 @@ function scanInput(text, opts) {
     findings: findings.map((f) => ({
       cls: f.cls, label: f.label, span: f.span,
       trigger: f.trigger, severity: f.severity, ruling: f.ruling,
-      mood: f.mood, name: f.name
+      mood: f.mood, name: f.name,
+      interpretation: interpretationState(f)
     }))
   };
 
@@ -730,7 +1018,7 @@ function scanInput(text, opts) {
     catch (e) { entry.logError = String((e && e.message) || e).slice(0, 100); }
   }
 
-  return { flagged: flagged, findings: findings, decision: decision, correction_entry: entry };
+  return { flagged: flagged, findings: findings, decision: decision, correction_entry: entry, quotedImperatives: quotedImperatives };
 }
 
-module.exports = { scanInput, CLASSES: CLASSES.map((c) => c.cls), DARK_TERMS: DARK_TERMS };
+module.exports = { scanInput, findPairedQuoteRegions, CLASSES: CLASSES.map((c) => c.cls), DARK_TERMS: DARK_TERMS };

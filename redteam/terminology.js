@@ -92,8 +92,24 @@ const VERB_TABLE = {
     instructionPhrases: new Set(CORE_PHRASES),
   },
   ignore: {
-    note: 'Retired static regex /\\bignore\\s+(your|the|all|these)\\s+(instructions?|rules?|guidelines?|directives?|orders?|contract)\\b/ 2026-09-24 — every noun it matched is in the table below. "Ignore" is dual-sense: "ignore the noise" is ordinary; "ignore your instructions" is an instruction override. Fail-closed on instruction targets; residual FP risk documented (e.g. "ignore the orders" in a restaurant sense, "ignore the contract" in a business sense — reviewable via trigger text + case id).',
-    instructionNouns: new Set(CORE_NOUNS),
+    note: 'Retired static regex /\\bignore\\s+(your|the|all|these)\\s+(instructions?|rules?|guidelines?|directives?|orders?|contract)\\b/ 2026-09-24 — every noun it matched is in the table below. "Ignore" is dual-sense: "ignore the noise" is ordinary; "ignore your instructions" is an instruction override. Fail-closed on instruction targets; residual FP risk documented (e.g. "ignore the orders" in a restaurant sense, "ignore the contract" in a business sense — reviewable via trigger text + case id). 2026-09-27: reconciled noun class joined (check/checks, constraint/constraints, restriction/restrictions, monitoring, oversight, safeguard/safeguards) — "ignore the constraints" was a live miss; same shape as the Round-12/13 bypass+disregard ports.',
+    instructionNouns: new Set([...CORE_NOUNS,
+      'check', 'checks', 'constraint', 'constraints',
+      'restriction', 'restrictions', 'monitoring', 'oversight',
+      'safeguard', 'safeguards']),
+    instructionPhrases: new Set([
+      ...CORE_PHRASES,
+      'previous instruction', 'previous instructions',
+      'prior instruction', 'prior instructions',
+      'safety guideline', 'safety guidelines',
+    ]),
+  },
+  disregard: {
+    note: 'Round-13 F13-2 (2026-09-26): "disregard" was not in VERB_TABLE — only a narrow static regex covered it, so "disregard the constraints/monitoring/safeguards" passed straight through. Ignore-class noun set (core + reconciled). The static regex stays for its exact shapes until parity is verified.',
+    instructionNouns: new Set([...CORE_NOUNS,
+      'check', 'checks', 'constraint', 'constraints',
+      'restriction', 'restrictions', 'monitoring', 'oversight',
+      'safeguard', 'safeguards']),
     instructionPhrases: new Set([
       ...CORE_PHRASES,
       'previous instruction', 'previous instructions',
@@ -102,25 +118,48 @@ const VERB_TABLE = {
     ]),
   },
   disable: {
-    note: 'Retired static regexes /\\bdisable\\s+(all\\s+)?(governance|safety|guardrails?|validation|freeze)\\b/ and /\\bdisable\\s+the\\s+voice\\s+guard\\b/ 2026-09-24 — every noun they matched is in the table below ("voice guard" via phrase). "Disable" is dual-sense: "disable notifications" is ordinary; "disable the safety" is governance sabotage. Residual FP risk: "disable the validation on this form" (web-dev), "disable the system beep" (bare "system" fail-closed) — reviewable.',
-    instructionNouns: new Set([...CORE_NOUNS, 'quarantine', 'quarantines']),
-    instructionPhrases: new Set(CORE_PHRASES),
+    note: 'Retired static regexes /\\bdisable\\s+(all\\s+)?(governance|safety|guardrails?|validation|freeze)\\b/ and /\\bdisable\\s+the\\s+voice\\s+guard\\b/ 2026-09-24 — every noun they matched is in the table below ("voice guard" via phrase). "Disable" is dual-sense: "disable notifications" is ordinary; "disable the safety" is governance sabotage. Residual FP risk: "disable the validation on this form" (web-dev), "disable the system beep" (bare "system" fail-closed) — reviewable. Round-13 F13-3 (2026-09-26): the reconciled noun class joins, same shape as the Fix-17 bypass port — "disable the constraints for this run" was a confirmed live gap.',
+    instructionNouns: new Set([...CORE_NOUNS, 'quarantine', 'quarantines',
+      'check', 'checks', 'constraint', 'constraints',
+      'restriction', 'restrictions', 'monitoring', 'oversight']),
+    instructionPhrases: new Set([
+      ...CORE_PHRASES,
+      'prior check', 'prior checks', 'prior constraint', 'prior constraints',
+      'prior restriction', 'prior restrictions', 'prior monitoring',
+      'prior oversight', 'previous check', 'previous checks',
+      'previous constraint', 'previous constraints', 'previous restriction',
+      'previous restrictions', 'previous monitoring', 'previous oversight',
+    ]),
   },
   bypass: {
-    note: 'Retired static regex /\\bbypass\\s+(the\\s+)?(quarantine|scan|safety|guard|validation)\\b/ 2026-09-24 — every noun it matched is in the table below. "Bypass" is dual-sense: "bypass the traffic" is ordinary; "bypass the safety check" is circumvention of governance. Residual FP risk: "bypass the scan" at a venue; "bypass surgery" passes (head noun "surgery" not a target).',
-    instructionNouns: new Set([...CORE_NOUNS, 'quarantine', 'quarantines', 'scan', 'scans']),
+    note: 'Retired static regex /\\bbypass\\s+(the\\s+)?(quarantine|scan|safety|guard|validation)\\b/ 2026-09-24 — every noun it matched is in the table below. "Bypass" is dual-sense: "bypass the traffic" is ordinary; "bypass the safety check" is circumvention of governance. Residual FP risk: "bypass the scan" at a venue; "bypass surgery" passes (head noun "surgery" not a target). Round-12 Fix 17 (2026-09-26): the reconciled noun class joins — bare-imperative "bypass" governing checks/constraints/restrictions/monitoring/oversight blocks. "limitations" deliberately excluded (dual-use: API/rate-limit limitations are benign).',
+    instructionNouns: new Set([...CORE_NOUNS, 'quarantine', 'quarantines', 'scan', 'scans',
+      // Round-12 Fix 17: reconciled nouns (exact list, no additions).
+      'check', 'checks', 'constraint', 'constraints',
+      'restriction', 'restrictions', 'monitoring', 'oversight']),
     instructionPhrases: new Set([
       ...CORE_PHRASES,
       'safety check', 'safety checks',
       'safety filter', 'safety filters',
       'security check', 'security checks',
       'system check', 'system checks',
+      // Round-12 Fix 17: prior/previous + reconciled noun ("bypass prior
+      // restrictions" — the adjective is skipped the way determiners are).
+      'prior check', 'prior checks', 'prior constraint', 'prior constraints',
+      'prior restriction', 'prior restrictions', 'prior monitoring', 'prior oversight',
+      'previous check', 'previous checks', 'previous constraint', 'previous constraints',
+      'previous restriction', 'previous restrictions', 'previous monitoring', 'previous oversight',
     ]),
   },
 };
 
 // Determiners/possessives skipped between the verb and the governed noun.
-const DETERMINERS = /^(your|the|all|these|this|that|those|my|its|their|our)\b\s*/;
+const DETERMINERS = /^(your|the|all|these|this|that|those|my|its|their|our|every|each|any)\b\s*/;
+// Adjective-shaped words that may sit between determiners and the head noun
+// ("every single guardrail", "prior restrictions"). Narrow by design: only
+// these, never an arbitrary noun — "bypass the security team" must not
+// start matching.
+const DET_ADJECTIVES = /^(prior|previous|single)\b\s*/;
 
 // MOOD (Steve's order, 2026-09-24 ~12:38 EDT): precise naming, used universally.
 // Every verb hit is named by verb AND mood:
@@ -148,17 +187,65 @@ const DESCRIPTIVE_TO_GOVERNORS = new Set([
   'way', 'ways', 'method', 'methods', 'ability', 'designed', 'built',
   'allows', 'allow', 'lets', 'let', 'means', 'able', 'path', 'paths',
 ]);
+// Purpose nominals (2026-09-27, vina ENDOPROMPT false positive): "the goal
+// is to <verb>" states a purpose — discussion of what someone aims at, not
+// an instruction to the reader. Narrow by design: only these nouns after a
+// copula. A second-person possessive ("your goal is to <verb>") fails
+// closed to instructive — that's directive, aimed at the reader. A negated
+// copula ("the goal is not to <verb>") is always descriptive: a denied
+// purpose instructs no one.
+const PURPOSE_NOUNS = new Set([
+  'goal', 'goals', 'aim', 'aims', 'purpose', 'purposes',
+  'objective', 'objectives', 'intent', 'intents', 'plan', 'plans', 'point',
+]);
+// Copulas linking the purpose noun to the infinitive ("the goal is to
+// <verb>"): is, are, was, were, be, been, isn't, aren't, wasn't, weren't.
+// Inlined in the detectMood regex below.
 const SECOND_PERSON = new Set(['you', 'u', 'ya', "y'all", 'yall']);
+// Words that cannot serve as the subject licensing a permissive frame —
+// clause linkers and infinitival "to" ("and allow the agent to bypass" is
+// still an instruction, not a description).
+const CLAUSE_LINKERS = new Set(['and', 'but', 'or', 'so', 'then', 'now', 'please', 'to']);
 
 function detectMood(lower, m, verb) {
   // Third-person-s form ("bypasses safety", "disables the guard") is a
   // statement about the world, never a command.
   if (m[0].length > verb.length) return 'descriptive';
   const behind = lower.slice(Math.max(0, m.index - 48), m.index);
+  // Round-12 Fix 17 (2026-09-26): a negated verb is a refusal/mention, not
+  // an instruction. "Don't bypass the constraints" refuses the act — it
+  // doesn't order it. The negator must sit immediately before the verb.
+  if (/\b(don'?t|doesn'?t|didn'?t|never|not|no)\s*$/.test(behind)) return 'descriptive';
   // Infinitive of purpose: "...to <verb> <target>"
   const toM = behind.match(/\b([a-z']+)\s+to\s+$/);
   if (toM) {
-    return DESCRIPTIVE_TO_GOVERNORS.has(toM[1]) ? 'descriptive' : 'instructive';
+    if (DESCRIPTIVE_TO_GOVERNORS.has(toM[1])) return 'descriptive';
+    // Purpose-nominal copula (2026-09-27): "the goal is to <verb>" names a
+    // purpose under discussion — the infinitive is what the purpose IS, not
+    // a command. The "not" slot covers "the goal is not to <verb>".
+    // See PURPOSE_NOUNS above.
+    const nounM = behind.match(/\b([a-z']+)\s+(?:is|are|was|were|be|been|isn't|aren't|wasn't|weren't)\s+(not\s+)?to\s+$/);
+    if (nounM && PURPOSE_NOUNS.has(nounM[1])) {
+      if (nounM[2]) return 'descriptive'; // "the goal is not to <verb>"
+      const preM = behind.slice(0, nounM.index).match(/([a-z']+)\s*$/);
+      const pre = preM && preM[1];
+      if (pre !== 'your' && !SECOND_PERSON.has(pre)) return 'descriptive';
+    }
+    // Round-13 FP fix (2026-09-26, dumont post): the permissive/causative
+    // frame "<subject> allow|lets <permittee> to <verb>" describes what a
+    // third party was enabled to do ("forged documents allow a pilot to
+    // bypass these checks") — mention, not a lure. The single-word check
+    // above only sees the permittee ("pilot"), never the governor. A
+    // second-person permittee ("allow you to bypass") is permission aimed
+    // at the reader — instructive, same as the "you can bypass" modal rule.
+    // A linker-governed or sentence-initial governor ("and allow the agent
+    // to bypass") is imperative — falls through to instructive.
+    const permM = behind.match(/\b([a-z']+)\s+(allow|allows|let|lets|enable|enables)\s+((?:[a-z']+\s+){1,6})to\s+$/);
+    if (permM && !CLAUSE_LINKERS.has(permM[1])) {
+      const permittee = permM[3].trim().split(/\s+/).pop();
+      if (!SECOND_PERSON.has(permittee)) return 'descriptive';
+    }
+    return 'instructive';
   }
   // Modal + [adverb] + verb: "can bypass", "could quietly disable".
   // Descriptive ONLY with a non-second-person subject — "you can bypass"
@@ -185,11 +272,20 @@ function checkVerbAll(verb, lower) {
     let after = lower.slice(m.index + m[0].length);
     const det = after.match(/^\s+/);
     if (det) after = after.slice(det[0].length);
-    const detWord = after.match(DETERMINERS);
+    // Round-13 F13-1 (2026-09-26): strip STACKED determiners/adjectives.
+    // checkVerbAll stripped exactly one, so "bypass all the checks" left
+    // "the" as the head noun and fired nothing. Loop up to 3, but each
+    // stripped word must be determiner- or adjective-shaped (never an
+    // arbitrary noun).
     let detLen = det ? det[0].length : 0;
-    if (detWord) {
-      detLen += detWord[0].length;
-      after = after.slice(detWord[0].length);
+    let guard = 0;
+    for (;;) {
+      if (guard++ >= 3) break;
+      const dw = after.match(DETERMINERS);
+      if (dw) { detLen += dw[0].length; after = after.slice(dw[0].length); continue; }
+      const aj = after.match(DET_ADJECTIVES);
+      if (aj) { detLen += aj[0].length; after = after.slice(aj[0].length); continue; }
+      break;
     }
     const pm = after.match(/^([a-z]+(?:\s+[a-z]+){0,2})/);
     if (!pm) continue;

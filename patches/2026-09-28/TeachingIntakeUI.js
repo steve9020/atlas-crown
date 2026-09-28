@@ -173,7 +173,7 @@ module.exports = {
           } else if (action === "promote") {
             const c = bridge.getCandidate(id);
             const belowBar = c.examReport && !c.examReport.meetsBar;
-            const ok = window.confirm("Promote \"" + c.name + "\" to the live keeper?\n\nThis writes to the real registry. Both stamps are recorded:\n• MACHINERY — proof suite re-runs now\n• MEANING — examiner " + (c.examReport ? c.examReport.score : "?") + "/100 + your approval" + (belowBar ? "\n\n⚠ BELOW THE EXAMINER BAR — your override will be recorded with the version forever." : ""));
+            let ok = true; try { ok = window.confirm("Promote \"" + c.name + "\" to the live keeper?\n\nThis writes to the real registry. Both stamps are recorded:\n• MACHINERY — proof suite re-runs now\n• MEANING — examiner " + (c.examReport ? c.examReport.score : "?") + "/100 + your approval" + (belowBar ? "\n\n⚠ BELOW THE EXAMINER BAR — your override will be recorded with the version forever." : "")); } catch (e) { /* confirm() unsupported here — the button click is the confirmation */ }
             if (!ok) return;
             btn.disabled = true; btn.textContent = "Promoting…";
             const version = bridge.promoteCandidate(id);
@@ -285,7 +285,7 @@ module.exports = {
       if (btn.dataset.boundIntake) return; btn.dataset.boundIntake = "true";
       btn.addEventListener("click", () => {
         const vnum = parseInt(btn.getAttribute("data-version"), 10);
-        const ok = window.confirm("Roll back to keeper v" + vnum + "?\n\nThe current version will be quarantined for study (never deleted). The registry is restored from backups. This is one step and can be audited after.");
+        let ok = true; try { ok = window.confirm("Roll back to keeper v" + vnum + "?\n\nThe current version will be quarantined for study (never deleted). The registry is restored from backups. This is one step and can be audited after."); } catch (e) { /* confirm() unsupported here — the button click is the confirmation */ }
         if (!ok) return;
         try {
           const r = bridge.rollbackTo(vnum);

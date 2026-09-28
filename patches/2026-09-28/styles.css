@@ -1665,7 +1665,7 @@
 .atlas-intake-flag-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .atlas-intake-flag-row label { flex: 1; min-width: 200px; }
 .atlas-intake-card-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
-.atlas-intake-card { border: 1px solid var(--background-modifier-border); border-radius: 10px; padding: 12px 14px; background: var(--background-secondary); }
+.atlas-intake-card { border: 1px solid var(--background-modifier-border); border-radius: 10px; padding: 12px 14px; background: var(--background-secondary); color: #1e293b; }
 .atlas-intake-card h4 { margin: 0; }
 .atlas-intake-card-quarantine { border-color: var(--text-error); }
 .atlas-intake-subhead { margin: 18px 0 4px; }

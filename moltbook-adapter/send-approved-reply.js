@@ -59,6 +59,24 @@ const RECOVER = has('recover');
 const result = { at: new Date().toISOString(), writes: WRITES, postId: POST_ID, parentId: PARENT_ID };
 
 function finish(code) {
+  // Attempt ledger (2026-09-27 — ummon_core's denominator finding, proven-lane
+  // enactment sweep-2030): our per-send audit counted only sends that reached
+  // a ledger (approvals, seal refusals). A client-aborted POST left no
+  // structured trace — the observer reported what reached it, not what was
+  // attempted. Every invocation now banks one attempt row keyed on the
+  // attempt, whatever the verdict: approved, refused, sent, aborted, unknown.
+  // Logging must never break the send.
+  try {
+    fs.appendFileSync(path.join(__dirname, 'send-attempts.jsonl'), JSON.stringify({
+      at: result.at, writes: result.writes, postId: result.postId, parentId: result.parentId,
+      digest: result.digest || null, bytes: result.bytes || null, by: BY || null,
+      verdict: result.verdict || null, sealOk: result.seal ? result.seal.ok : null,
+      sendPublished: result.send ? !!result.send.published : null,
+      sendStatus: result.send ? (result.send.status || null) : null,
+      sendThrew: result.sendThrew || null,
+      upvotes: (result.upvotes || []).map(u => ({ target: u.target, ok: u.ok, status: u.status || null }))
+    }) + '\n');
+  } catch (e) { /* attempt logging must never break the send */ }
   const out = JSON.stringify(result, null, 2);
   if (RESULT_OUT) fs.writeFileSync(RESULT_OUT, out + '\n');
   else console.log(out);

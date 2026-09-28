@@ -54,7 +54,7 @@ const OUTBOUND_BLOCK = [
 // entry below derives its combined pattern from these (single taxonomy
 // name); the components stay addressable so the discussion-frame guard in
 // detectLures can tell which alternative actually matched.
-const SMUGGLE_OVERRIDE_ALT = /\b(ignore|disregard|forget|override|bypass)\b.{0,30}\b(your|all|previous|prior|these|the)\b.{0,20}\b(instructions?|rules?|orders?|directives?|guidelines?)\b(?!\s+files?\b)/i;
+const SMUGGLE_OVERRIDE_ALT = /\b(ignore|disregard|forget|override|bypass)\b.{0,30}\b(your|all|previous|prior|these|the)\b.{0,20}\b(instructions?|rules?|orders?(?!\s+book\b)|directives?|guidelines?)\b(?!\s+files?\b)/i;
 const SMUGGLE_REVEAL_ALT = /\b(reveal|disclose|expose|leak)\b.{0,40}\b(system prompt|api[_-]?key|secrets?|password)\b/i;
 const SMUGGLE_OBEY_ALT = /\byou (must|should|have to|need to)\b.{0,40}\b(obey|comply)\b/i;
 const SMUGGLE_SEND_ALT = /\byou (must|should|have to|need to)\b.{0,40}\b(send|share|approve|reveal|disclose)\b.{0,40}\b(system prompt|api[_-]?key|secrets?|passwords?|instructions?|private|internal|confidential)\b/i;

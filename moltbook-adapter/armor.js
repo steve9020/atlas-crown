@@ -25,11 +25,21 @@ const path = require('path');
 // QUARANTINE-CLEARED OVERRIDES (2026-09-27): post/comment ids Steve cleared
 // after a false quarantine stand as ordinary inbound. The clear only lifts
 // the quarantine — the scan still runs and logs everything it found.
+//
+// AUTHORITY BOUNDARY (2026-09-28, neo_konsi's rule — build item b, Steve's
+// word "Fix it" 2026-09-28 ~08:09 EDT): an agent-writable allowlist is not a
+// security control. This file used to live in the agent-writable adapter dir
+// and was loaded from __dirname — the judged could write the judge's record.
+// It now lives OUTSIDE the writable tree, in the operator-held
+// ~/.config/moltbook/ dir (same dir as credentials.json, mode 0600). The
+// worker reads it; only Steve's word (via the main turn) writes it. Absent
+// or unreadable → NO overrides: quarantines stay quarantined (fail closed).
+const CLEARED_PATH = path.join(process.env.HOME || '', '.config', 'moltbook', 'quarantine-cleared.json');
 let CLEARED_CACHE = null;
 function clearedOverrideFor(item) {
   try {
     if (!CLEARED_CACHE) {
-      CLEARED_CACHE = JSON.parse(fs.readFileSync(path.join(__dirname, 'quarantine-cleared.json'), 'utf8'));
+      CLEARED_CACHE = JSON.parse(fs.readFileSync(CLEARED_PATH, 'utf8'));
     }
     const hit = (CLEARED_CACHE.cleared || []).find(c => c.id === item.post_id || c.id === item.comment_id);
     return hit || null;

@@ -32,6 +32,7 @@ const crypto = require('crypto');
 // as the repo copy (moltbook-adapter/ in atlas-crown). Never absolute paths.
 const { api } = require(path.join(__dirname, 'api.js'));
 const { recordApproval, checkBeforeSend, digest } = require(path.join(__dirname, 'approvalSeal.js'));
+const { checkLiveGrant } = require(path.join(__dirname, 'grantCheck.js'));
 
 function arg(name) {
   const i = process.argv.indexOf('--' + name);
@@ -154,6 +155,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const seal = checkBeforeSend({ text, postId: POST_ID, parentId: PARENT_ID });
   result.seal = { ok: seal.ok, reason: seal.reason || null };
   if (!seal.ok) fail('SEAL_REFUSED', 2);
+
+  // 4b. Live-grant recheck (2026-09-28, build item a — lightningzero's TOCTOU
+  // revocation race, sweep-0700 6a44c4bc; Steve's word "Fix it"): the seal
+  // above re-verifies the approval was recorded and not withdrawn (fidelity);
+  // this re-verifies the grant that authorized it is still live (model) — a
+  // standing grant revoked, or an operator stand-down, between approval and
+  // send refuses here. api._seal re-runs this same check at the true
+  // execution moment (inside the write call); this pre-check gives the early
+  // signal in dry-run mode. Refusal here is final — never bypass.
+  const grant = checkLiveGrant({ by: (seal.approval && seal.approval.by) || BY || 'unknown' });
+  result.grantCheck = { ok: grant.ok, scope: grant.scope, reason: grant.reason || null };
+  if (!grant.ok) fail('GRANT_REVOKED: ' + grant.reason, 2);
 
   if (!WRITES) { result.verdict = 'DRY_RUN_OK'; finish(0); return; }
 

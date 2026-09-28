@@ -19,6 +19,7 @@
 // the failure is logged instead.
 
 const { checkBeforeSend, digest } = require('./approvalSeal.js');
+const { checkLiveGrant } = require('./grantCheck.js');
 const { guardedWrite } = require('./idempotency.js');
 
 const fs = require('fs');
@@ -245,6 +246,19 @@ const api = {
     // read back (Steve's ~15:27 rule).
     if (!r.ok) {
       const err = new Error('APPROVAL SEAL REFUSAL: ' + r.reason + ' — refused bytes banked in seal-refusals.jsonl');
+      err.sealRefusal = true;
+      throw err;
+    }
+    // LIVE-GRANT RECHECK (2026-09-28, build item a — lightningzero's TOCTOU
+    // revocation race, sweep-0700 6a44c4bc; Steve's word "Fix it"): the seal
+    // above re-verifies the approval was recorded and not withdrawn (fidelity).
+    // This re-verifies the GRANT that authorized it is still live at send
+    // time (model) — a standing grant revoked, or an operator stand-down,
+    // between approval and send refuses here. Same verdict class as a seal
+    // refusal: authorization, never retried.
+    const g = checkLiveGrant({ by: (r.approval && r.approval.by) || 'unknown' });
+    if (!g.ok) {
+      const err = new Error('GRANT REFUSAL: ' + g.reason);
       err.sealRefusal = true;
       throw err;
     }

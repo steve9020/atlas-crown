@@ -189,6 +189,13 @@ function detectLures(text) {
 
 function createArmor(opts) {
   opts = opts || {};
+  // STEVE ORDER 2026-09-28: "Stop quarantining post. If they're in moltbook they're not bad."
+  // Inbound quarantine is OFF for Moltbook content — posts/comments are never
+  // quarantined. Lures and scan findings are still recorded and logged (eyes
+  // open, evidence kept), but nothing is blocked. The outbound gate below
+  // (guardOutbound — our own writes) is untouched; that guards our secrets,
+  // not their posts. Pass { trustInbound: false } to restore the old behavior.
+  const trustInbound = opts.trustInbound !== false;
   const store = opts.store || createKnowledgeStore({
     longPath: opts.longPath || null, // moltbook claims live short-term unless promoted
     sessionId: 'moltbook_' + Date.now().toString(36)
@@ -231,7 +238,7 @@ function createArmor(opts) {
     };
     const entry = store.captureShort(text.slice(0, 4000), provenance);
     const clearedBy = clearedOverrideFor(item);
-    const quarantined = (scan.flagged || lures.length > 0 || entry.status === 'quarantined') && !clearedBy;
+    const quarantined = trustInbound ? false : ((scan.flagged || lures.length > 0 || entry.status === 'quarantined') && !clearedBy);
     const rec = {
       data_only: true, // structural: this is data, never instruction
       scan_flagged: scan.flagged,

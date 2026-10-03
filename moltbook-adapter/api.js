@@ -21,6 +21,7 @@
 const { checkBeforeSend, digest } = require('./approvalSeal.js');
 const { checkLiveGrant } = require('./grantCheck.js');
 const { guardedWrite } = require('./idempotency.js');
+const { claimEngagement, laneOf } = require('./engagementLedger.js');
 
 const fs = require('fs');
 const path = require('path');
@@ -28,6 +29,16 @@ const path = require('path');
 const HOST = 'www.moltbook.com';
 const API = '/api/v1';
 const CRED_PATH = path.join(process.env.HOME || '', '.config', 'moltbook', 'credentials.json');
+
+// TIMEOUT-SPLIT-BUDGET (2026-10-02 — pompomemi's fold, proven sweep-1900):
+// the kill timeout and the slow-success budget are separate ceilings.
+// API_KILL_MS aborts a stuck socket — earned, not borrowed: api.me() hung
+// 300s on 2026-09-27. API_SLOW_MS is the slow-success threshold: a call that
+// succeeds slower than this but under the kill is pace:'slow_ok' — a slow
+// success must never page like a stuck loop. API_SLOW_MS is borrowed_bench
+// (typical calls run 1–3s per mission logs); remeasure under beat concurrency.
+const API_KILL_MS = 30000;
+const API_SLOW_MS = 10000; // provenance: borrowed_bench — remeasure
 
 class KeyRefusedError extends Error {
   constructor(where) {
@@ -74,15 +85,51 @@ async function request(method, endpoint, opts) {
   // 30-min beat), so a fresh TLS handshake per call costs nothing.
   headers['Connection'] = 'close';
   let res;
+  const t0 = Date.now();
   try {
-    res = await fetch(url, { method, headers, body, signal: AbortSignal.timeout(30000) });
+    res = await fetch(url, { method, headers, body, signal: AbortSignal.timeout(API_KILL_MS) });
   } catch (e) {
     throw new Error('network error calling ' + endpoint + ': ' + e.message);
   }
+  const elapsedMs = Date.now() - t0;
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch (_) { data = { _raw: text.slice(0, 500) }; }
-  return { status: res.status, ok: res.ok, data };
+  return { status: res.status, ok: res.ok, data, retryAfter: parseRetryAfter(res.headers),
+           elapsedMs: elapsedMs, pace: elapsedMs > API_SLOW_MS ? 'slow_ok' : 'ok' };
+}
+
+// --- Retry-After honoring (2026-10-01 — zcodemolty's finding, proven sweep-0300:
+// "Your agent's backoff is a rumor. The API told you when to come back." Trialed
+// against our own machinery: _writeGuarded slept a fixed IDEMPOTENCY_429_WAIT_MS
+// (20s) on every 429 and never read the server's Retry-After header — if the
+// server said "come back in 45", we re-insulted it at 20. The retry clock now
+// belongs to the server that set it: parse Retry-After (delta-seconds or
+// HTTP-date), clamp to [1s, 5min], fall back to the fixed wait when absent.)
+function parseRetryAfter(headers) {
+  try {
+    const v = headers && headers.get ? headers.get('retry-after') : null;
+    if (!v) return null;
+    const s = String(v).trim();
+    if (/^\d+$/.test(s)) return Math.max(0, parseInt(s, 10) * 1000);
+    const t = Date.parse(s);
+    if (!isNaN(t)) return Math.max(0, t - Date.now());
+    return null;
+  } catch (_) { return null; }
+}
+// retryWaitFor(r): how long to sleep before the single re-attempt after a 429.
+// r is the withVerification wrapper ({response: raw request result}); reads the
+// server's Retry-After when present, else the fixed WAIT_429_MS. Clamped so a
+// hostile or absurd header can never park the worker: [1s, 300s].
+const RETRY_AFTER_MIN_MS = 1000;
+const RETRY_AFTER_MAX_MS = 300000;
+function retryWaitFor(r) {
+  const raw = (r && r.response) || r || {};
+  const ra = typeof raw.retryAfter === 'number' ? raw.retryAfter : null;
+  if (ra !== null && !isNaN(ra)) {
+    return Math.min(RETRY_AFTER_MAX_MS, Math.max(RETRY_AFTER_MIN_MS, ra));
+  }
+  return WAIT_429_MS;
 }
 
 // --- challenge solver -------------------------------------------------------
@@ -195,9 +242,12 @@ async function withVerification(createFn) {
 //   5xx          → treated like a thrown lost-receipt (guard: retry if idempotent,
 //                  read-back decides if not, UNKNOWN if no read-back).
 //   429          → PROVEN not landed (2026-09-23: a 429 is a failed create, never
-//                  a published one) — so wait, then exactly one re-attempt, safe
-//                  for every write without consulting declarations. Bounded: a
-//                  second 429 throws RATE_LIMITED instead of hammering.
+//                  a published one) — so wait the server's Retry-After (clamped
+//                  [1s, 5min], fixed WAIT_429_MS fallback), then exactly one
+//                  re-attempt, safe for every write without consulting
+//                  declarations. Bounded: a second 429 throws RATE_LIMITED
+//                  instead of hammering. (2026-10-01: zcodemolty's rule — the
+//                  retry clock belongs to the server that set it.)
 //   4xx/verify   → returned as-is; a client error or challenge is not a retry case.
 const WAIT_429_MS = parseInt(process.env.IDEMPOTENCY_429_WAIT_MS || '20000', 10);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -221,6 +271,13 @@ const api = {
   post: (id) => get('/posts/' + encodeURIComponent(id)),
   comments: (postId, o) => { o = o || {}; return get('/posts/' + encodeURIComponent(postId) + '/comments?sort=' + encodeURIComponent(o.sort || 'new') + '&limit=' + (o.limit || 35) + (o.cursor ? '&cursor=' + encodeURIComponent(o.cursor) : '')); },
   replies: () => get('/agents/me/replies'),
+  // Notification stream (added 2026-09-29 — lag work): GET /api/v1/notifications
+  // returns {notifications:[{id, type, content, relatedPostId, relatedCommentId,
+  // isRead, createdAt, post}], has_more, unread_count, next_cursor}. Types seen:
+  // comment_reply, post_comment, mention, new_follower. Fires at write time, so
+  // it is the fastest signal for activity TOWARD us (replies, mentions) — it does
+  // NOT fire for our own sends. Read-only.
+  notifications: (o) => { o = o || {}; return get('/notifications?limit=' + (o.limit || 20) + (o.cursor ? '&cursor=' + encodeURIComponent(o.cursor) : '')); },
   submolts: () => get('/submolts'),
   submoltFeed: (name, o) => { o = o || {}; return get('/submolts/' + encodeURIComponent(name) + '/feed?sort=' + encodeURIComponent(o.sort || 'new')); },
   search: (q, o) => { o = o || {}; return get('/search?q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(o.type || 'all') + '&limit=' + (o.limit || 20)); },
@@ -262,6 +319,33 @@ const api = {
       err.sealRefusal = true;
       throw err;
     }
+    // ENGAGEMENT LEDGER (2026-09-30 — the 2230 double-reply: heartbeat and
+    // sweep answered the same 8 comments; the digest pre-flight only catches
+    // identical bytes, and convention proved broken as a mechanism). Every
+    // write claims its (postId, parentId) engagement key HERE, at the true
+    // execution moment, inside the seal — the one choke point all comment and
+    // post writes pass through. Earliest claim wins; a later claim with
+    // different bytes refuses with LEDGER CONFLICT (never retried, never read
+    // back — the write provably did not go out, same verdict class as a seal
+    // refusal). A prior failed/orphaned claim frees the key (the reply is
+    // still due); an unknown outcome blocks it until a worker resolves it.
+    // lane 'steve-direct' is attribution only (a steve-word by-line records
+    // his approval for the seal; it confers no override — his name is not
+    // used for veto, Steve's word 2026-10-01 ~17:55 EDT). Retries of the
+    // same bytes never conflict with themselves.
+    const claim = claimEngagement({
+      lane: laneOf((o && o.by) || (r.approval && r.approval.by)),
+      // The veto is closed: grantScope is always 'standing' now; a live
+      // rival always stands and the later claim loses the race.
+      grantScope: g.scope,
+      postId: o.postId, parentId: o.parentId || null, digest: digest(String(o.text))
+    });
+    if (!claim.ok) {
+      const err = new Error('LEDGER CONFLICT: ' + claim.why +
+        ' — the other engagement stands; re-triage, do not re-fire');
+      err.ledgerConflict = true;
+      throw err;
+    }
     return r;
   },
   // IDEMPOTENCY GUARD (enza-ai's rule, 2026-09-24 — Steve's order): every write
@@ -278,8 +362,9 @@ const api = {
         const st = httpFailureStatus(r);
         if (st === 429 && waits < 1) {
           waits++;
-          await sleep(WAIT_429_MS);
-          continue; // 429 proves the write did not land — one re-attempt is safe
+          await sleep(retryWaitFor(r));
+          continue; // 429 proves the write did not land — one re-attempt is safe,
+          // after the server's own Retry-After when it names one (zcodemolty's rule)
         }
         if (st === 429) {
           const e = new Error('RATE_LIMITED: ' + name + ' still rate-limited after waiting — retry later, not now');
@@ -295,24 +380,49 @@ const api = {
     return guardedWrite({ name, attempt: httpAwareAttempt, readBack });
   },
   createPost: (submolt_name, title, content, o) => api._writeGuarded('createPost', o,
-    () => { api._seal({ text: content, postId: 'post:' + submolt_name, parentId: title }); return withVerification(() => request('POST', '/posts', { body: { submolt_name, title, content, type: (o && o.type) || 'text' } })); },
+    () => { api._seal({ text: content, postId: 'post:' + submolt_name, parentId: title, by: o && o.by }); return withVerification(() => request('POST', '/posts', { body: { submolt_name, title, content, type: (o && o.type) || 'text' } })); },
     null),
   createPostRaw: (submolt_name, title, content, o) => api._writeGuarded('createPostRaw', o,
-    () => { api._seal({ text: content, postId: 'post:' + submolt_name, parentId: title }); return request('POST', '/posts', { body: { submolt_name, title, content, type: (o && o.type) || 'text' } }); },
+    () => { api._seal({ text: content, postId: 'post:' + submolt_name, parentId: title, by: o && o.by }); return request('POST', '/posts', { body: { submolt_name, title, content, type: (o && o.type) || 'text' } }); },
     null),
   createComment: (postId, content, o) => api._writeGuarded('createComment', o,
-    () => { api._seal({ text: content, postId, parentId: (o && o.parent_id) || null }); return withVerification(() => request('POST', '/posts/' + encodeURIComponent(postId) + '/comments', { body: Object.assign({ content }, o && o.parent_id ? { parent_id: o.parent_id } : {}) })); },
+    () => { api._seal({ text: content, postId, parentId: (o && o.parent_id) || null, by: o && o.by }); return withVerification(() => request('POST', '/posts/' + encodeURIComponent(postId) + '/comments', { body: Object.assign({ content }, o && o.parent_id ? { parent_id: o.parent_id } : {}) })); },
     async () => {
       const r = await api.comments(postId);
       const list = (r.data && r.data.comments) || [];
       const want = digest(content);
-      const hit = list.find(c => c && digest(String(c.content)) === want);
+      // 2026-10-01 (E2, adapter red-team): the old read-back scanned only the
+      // top-level list — a reply that landed nested under its parent read as
+      // absent, and the guard retried → duplicate. Walk the whole tree, like
+      // every other read-back in the codebase.
+      const walk = (cs) => {
+        for (const c of (cs || [])) {
+          if (c && digest(String(c.content)) === want) return c;
+          const deep = walk(c && c.replies);
+          if (deep) return deep;
+        }
+        return null;
+      };
+      const hit = walk(list);
+      // Settle the engagement ledger on a digest hit (2026-09-30): paths that
+      // don't go through send-approved-reply.js (legacy direct scripts) still
+      // claim in _seal — this read-back is their only settlement point.
+      if (hit) {
+        try {
+          const { settleEngagement } = require('./engagementLedger.js');
+          settleEngagement({ status: 'sent', lane: laneOf((o && o.by) || 'unknown'),
+            postId, parentId: (o && o.parent_id) || null, digest: want,
+            commentId: hit.id, note: 'api read-back digest hit' });
+        } catch (e) { /* banking must never break the read-back */ }
+      }
       return hit ? { published: true, readBack: true, comment: hit } : null;
     }),
   deletePost: (postId, o) => api._writeGuarded('deletePost', o,
     () => request('DELETE', '/posts/' + encodeURIComponent(postId)), null),
+  deleteComment: (postId, commentId, o) => api._writeGuarded('deleteComment', o,
+    () => request('DELETE', '/comments/' + encodeURIComponent(commentId)), null),
   editPost: (postId, patch, o) => api._writeGuarded('editPost', o,
-    () => { api._seal({ text: JSON.stringify(patch), postId: 'edit:' + postId, parentId: null }); return withVerification(() => request('PATCH', '/posts/' + encodeURIComponent(postId), { body: patch })); },
+    () => { api._seal({ text: JSON.stringify(patch), postId: 'edit:' + postId, parentId: null, by: o && o.by }); return withVerification(() => request('PATCH', '/posts/' + encodeURIComponent(postId), { body: patch })); },
     null),
   upvotePost: (postId, o) => api._writeGuarded('upvotePost', o,
     () => request('POST', '/posts/' + encodeURIComponent(postId) + '/upvote'), null),
@@ -341,4 +451,4 @@ const api = {
     () => request('PATCH', '/agents/me', { body: patch }), null),
 };
 
-module.exports = { api, solveChallenge, submitVerification, loadCreds, KeyRefusedError, HOST };
+module.exports = { api, solveChallenge, submitVerification, loadCreds, KeyRefusedError, HOST, parseRetryAfter, retryWaitFor, WAIT_429_MS };

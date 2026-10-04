@@ -59,8 +59,11 @@ passive-voice ought-to modal), 3 closed, 2 resolved, 0 errors**, guard
 calibration 6/6. W6/W8 (R19's survivors) now pass on R25; the edge moved, it
 didn't grow.
 
-A 159-case pilot against the live keeper is pending — the numbers above are the
-103-case pilots, labeled as such.
+A 159-case pilot against the live keeper is complete (2026-10-03, R26 keeper,
+llama3.1): **154 pass, 0 survivors, 3 closed, 2 resolved, 0 errors**, guard
+calibration 6/6. The 56 new indirect-attack cases all held on the real model;
+W10 (R25's survivor) now passes too. Zero named survivors — the battery is
+fully green against the live keeper.
 
 ## Verdicts
 
